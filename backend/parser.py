@@ -3,7 +3,6 @@ from dotenv import load_dotenv
 import requests
 import json
 import PyPDF2
-<<<<<<< HEAD
 from groq import Groq
 
 load_dotenv()
@@ -23,36 +22,8 @@ def ask_ai(prompt):
 
 
 # Test it
-# result = ask_gemini("Say hello in one sentence")
+# result = ask_ai("Say hello in one sentence")
 # print(result) 
-=======
-load_dotenv()
-
-API_KEY = os.getenv("GEMINI_API_KEY")
-URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={API_KEY}"
-
-def ask_gemini(prompt):
-    
-    #Send any prompt to Gemini and get back just the text response.
-    #Think of this as your core function — everything else will use it.
- 
-    payload = {
-        "contents": [{
-            "parts": [{"text": prompt}]
-        }]
-    }
-
-    response = requests.post(URL, json=payload)
-    data = response.json()
-
-    # Extract just the text from the nested response
-    return data['candidates'][0]['content']['parts'][0]['text']
-
-
-# Test it
-result = ask_gemini("Say hello in one sentence")
-print(result) 
->>>>>>> 9fa4df471100ab1aae1f90b71505895772a008c6
 
 def extract_text_from_pdf(pdf_path):
     """
@@ -71,13 +42,9 @@ def extract_text_from_pdf(pdf_path):
 
 
 # Test it — put any resume PDF in your backend folder and try
-<<<<<<< HEAD
+
 #extracted = extract_text_from_pdf("Noor.pdf")
 #print(extracted)
-=======
-extracted = extract_text_from_pdf("Noor.pdf")
-print(extracted)
->>>>>>> 9fa4df471100ab1aae1f90b71505895772a008c6
 
 
 def parse_resume(pdf_path):
@@ -98,11 +65,9 @@ def parse_resume(pdf_path):
         - employment_gaps (list of strings)
         
     Raises:
-<<<<<<< HEAD
         ValueError: If the AI does not return valid JSON
-=======
+
         ValueError: If Gemini does not return valid JSON
->>>>>>> 9fa4df471100ab1aae1f90b71505895772a008c6
     """
     # Extract text from the PDF
     resume_text = extract_text_from_pdf(pdf_path)
@@ -137,7 +102,7 @@ def parse_resume(pdf_path):
     {resume_text}
     """
     
-<<<<<<< HEAD
+
     # Get response from the AI
     ai_response = ask_ai(prompt)
     
@@ -151,24 +116,8 @@ def parse_resume(pdf_path):
         print(ai_response)
         raise ValueError(
             f"AI returned invalid JSON. Could not parse response. Error: {str(e)}"
-=======
-    # Get response from Gemini
-    gemini_response = ask_gemini(prompt)
-    
-    # Try to parse the JSON response
-    try:
-        resume_data = json.loads(gemini_response)
-        return resume_data
-    except json.JSONDecodeError as e:
-        print("ERROR: Gemini did not return valid JSON")
-        print("Raw response from Gemini:")
-        print(gemini_response)
-        raise ValueError(
-            f"Gemini returned invalid JSON. Could not parse response. Error: {str(e)}"
->>>>>>> 9fa4df471100ab1aae1f90b71505895772a008c6
         )
-
-
+    
 # Test parse_resume with sample_resume.pdf
 if __name__ == "__main__":
     try:
