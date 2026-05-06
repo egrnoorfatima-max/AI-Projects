@@ -1,1 +1,18 @@
-This is my first repository
+Problem Statement:
+A recruiter gets 100s of resume on a job post, he/she wants to do a screening to get the most qualified and suited individuals as quickly as possible. Moreover, a recruiter is working on multiple positions at a time.
+User:
+A user gets a folder with 100 resumes for one role and is working on several hirings. He/ She wants to shortlist candidates under 30 minutes, so they could save time by not reading resumes that are not even related.
+Goals & Success Metrics:
+A user uploads a resume and get important data extracted in a spreadsheet with more than 90% accuracy, the sheet is ready to be used as it has data and the comments about the candidates about their status.
+In scope/ Out of Scope:
+•	Upload pdf file 
+•	Extract correct Information in Spreadsheet
+•	It returns the reason why some candidate is shortlisted or rejected.
+•	Different criteria like location, expected salary, relevant technical skills have weightage in overall calculation of score in order to shortlist/reject a candidate.
+•	Sheet is download able.
+Key risks:
+•	The information is not extracted properly.
+•	It overlooks some important information that can reject actually capable candidates.
+What’s done look like:
+I upload resumes in bulk and it provide me a ready to use excel sheet that has data for all the candidates. It should also give me a list of shortlisted candidates in order starts from best, and write a reason why this candidate is useful/ or reject.
+
