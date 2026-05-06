@@ -3,32 +3,27 @@ from dotenv import load_dotenv
 import requests
 import json
 import PyPDF2
+from groq import Groq
+
 load_dotenv()
 
-API_KEY = os.getenv("GEMINI_API_KEY")
-URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={API_KEY}"
+API_KEY = os.getenv("GROQ_API_KEY")
 
-def ask_gemini(prompt):
+def ask_ai(prompt):
+    # Send any prompt to Groq and get back just the text response
+    client = Groq(api_key=API_KEY)
     
-    #Send any prompt to Gemini and get back just the text response.
-    #Think of this as your core function — everything else will use it.
- 
-    payload = {
-        "contents": [{
-            "parts": [{"text": prompt}]
-        }]
-    }
-
-    response = requests.post(URL, json=payload)
-    data = response.json()
-
-    # Extract just the text from the nested response
-    return data['candidates'][0]['content']['parts'][0]['text']
+    completion = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    
+    return completion.choices[0].message.content
 
 
 # Test it
-result = ask_gemini("Say hello in one sentence")
-print(result) 
+# result = ask_gemini("Say hello in one sentence")
+# print(result) 
 
 def extract_text_from_pdf(pdf_path):
     """
@@ -47,8 +42,8 @@ def extract_text_from_pdf(pdf_path):
 
 
 # Test it — put any resume PDF in your backend folder and try
-extracted = extract_text_from_pdf("Noor.pdf")
-print(extracted)
+#extracted = extract_text_from_pdf("Noor.pdf")
+#print(extracted)
 
 
 def parse_resume(pdf_path):
@@ -69,7 +64,7 @@ def parse_resume(pdf_path):
         - employment_gaps (list of strings)
         
     Raises:
-        ValueError: If Gemini does not return valid JSON
+        ValueError: If the AI does not return valid JSON
     """
     # Extract text from the PDF
     resume_text = extract_text_from_pdf(pdf_path)
@@ -104,19 +99,19 @@ def parse_resume(pdf_path):
     {resume_text}
     """
     
-    # Get response from Gemini
-    gemini_response = ask_gemini(prompt)
+    # Get response from the AI
+    ai_response = ask_ai(prompt)
     
     # Try to parse the JSON response
     try:
-        resume_data = json.loads(gemini_response)
+        resume_data = json.loads(ai_response)
         return resume_data
     except json.JSONDecodeError as e:
-        print("ERROR: Gemini did not return valid JSON")
-        print("Raw response from Gemini:")
-        print(gemini_response)
+        print("ERROR: AI did not return valid JSON")
+        print("Raw response from AI:")
+        print(ai_response)
         raise ValueError(
-            f"Gemini returned invalid JSON. Could not parse response. Error: {str(e)}"
+            f"AI returned invalid JSON. Could not parse response. Error: {str(e)}"
         )
 
 
