@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 import requests
 import json
+import re
 import PyPDF2
 from groq import Groq
 
@@ -117,14 +118,121 @@ def parse_resume(pdf_path):
         raise ValueError(
             f"AI returned invalid JSON. Could not parse response. Error: {str(e)}"
         )
+
+
+def match_jd(resume_data, jd_text):
+    """
+    Matches a parsed resume against a job description and returns a detailed analysis.
+    
+    Args:
+        resume_data: Dictionary of parsed resume data
+        jd_text: Plain text string of the job description
+        
+    Returns:
+        Dictionary with detailed matching analysis containing:
+        - overall_score: 0-100
+        - score_breakdown: skills_match, experience_match, education_match, seniority_match
+        - matching_skills, missing_skills, bonus_skills
+        - experience_analysis with requirement comparison
+        - strong_points and red_flags
+        - scorecard with ratings
+        - summary and hire_recommendation
+        
+    Raises:
+        ValueError: If AI does not return valid JSON
+    """
+    # Convert resume data to JSON string
+    resume_json = json.dumps(resume_data)
+    
+    # Build the detailed prompt
+    prompt = f"""You are an expert technical recruiter and hiring specialist with 15 years of experience.
+
+Deeply analyze the following resume against the job description below. Be strict and realistic in your scoring — do NOT be generous.
+
+RESUME DATA:
+{resume_json}
+
+JOB DESCRIPTION:
+{jd_text}
+
+Return ONLY a valid JSON object with NO markdown, NO backticks, NO explanation whatsoever.
+
+The JSON must have these exact fields:
+{{
+    "overall_score": <number 0-100>,
+    "score_breakdown": {{
+        "skills_match": <number 0-100>,
+        "experience_match": <number 0-100>,
+        "education_match": <number 0-100>,
+        "seniority_match": <number 0-100>
+    }},
+    "matching_skills": [<list of skill strings found in both resume and JD>],
+    "missing_skills": [<list of skill strings required in JD but missing from resume>],
+    "bonus_skills": [<list of extra skills candidate has that add value but aren't in JD>],
+    "experience_analysis": {{
+        "required_years": <number from JD>,
+        "candidate_years": <number from resume>,
+        "meets_requirement": <boolean>,
+        "comment": "<one sentence explanation>"
+    }},
+    "strong_points": [<at least 3 specific strings describing why candidate is strong, referencing actual resume details>],
+    "red_flags": [<list of specific concerns about candidate for this role, or empty list if none>],
+    "scorecard": {{
+        "technical_skills": {{"rating": "<Strong/Good/Weak>", "reason": "<one sentence>"}},
+        "experience_level": {{"rating": "<Strong/Good/Weak>", "reason": "<one sentence>"}},
+        "education": {{"rating": "<Strong/Good/Weak>", "reason": "<one sentence>"}},
+        "career_progression": {{"rating": "<Strong/Good/Weak>", "reason": "<one sentence>"}},
+        "role_alignment": {{"rating": "<Strong/Good/Weak>", "reason": "<one sentence>"}}
+    }},
+    "summary": "<3 sentences max, written as if a senior recruiter is briefing a hiring manager>",
+    "hire_recommendation": "<exactly one of: Strong Yes, Yes, Maybe, No>",
+    "recommendation_reason": "<one paragraph explaining the hire recommendation decision in detail>"
+}}"""
+    
+    # Get response from the AI
+    ai_response = ask_ai(prompt)
+    
+    # Clean the response
+    ai_response = ai_response.strip()
+    # Remove markdown backticks
+    ai_response = re.sub(r'^```(?:json)?\n?', '', ai_response)
+    ai_response = re.sub(r'\n?```$', '', ai_response)
+    
+    # Fix common JSON errors
+    ai_response = ai_response.replace('"role_alignment": {"rating"', '"role_alignment": {"rating"').replace('reason": "..."]', 'reason": "..."}')
+    ai_response = re.sub(r'\]([\s]*\})', r'}\1', ai_response)
+    
+    # Try to parse the JSON response
+    try:
+        match_result = json.loads(ai_response)
+        return match_result
+    except json.JSONDecodeError:
+        try:
+            json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+                match_result = json.loads(json_str)
+                return match_result
+            else:
+                raise json.JSONDecodeError("No JSON found", "", 0)
+        except json.JSONDecodeError:
+            print("Raw response from AI:")
+            print(ai_response)
+            raise ValueError("AI did not return valid JSON")
+
     
 # Test parse_resume with sample_resume.pdf
 if __name__ == "__main__":
     try:
         parsed_data = parse_resume("Noor.pdf")
-        print("Successfully parsed resume!")
-        print(json.dumps(parsed_data, indent=2))
+        print("Resume parsed successfully")
+        
+        jd_text = """We are looking for a Senior Data Engineer with 5+ years of experience. Must have strong skills in Python, SQL, Apache Spark, Airflow, and cloud platforms like AWS or Azure. Experience with Power BI or any visualization tool is a plus. Should have experience building ETL pipelines and data warehouses."""
+        
+        match_result = match_jd(parsed_data, jd_text)
+        print("JD Match Analysis:")
+        print(json.dumps(match_result, indent=2))
     except FileNotFoundError:
-        print("Error: sample_resume.pdf not found. Please make sure the file exists in the backend folder.")
+        print("Error: Noor.pdf not found. Please make sure the file exists in the backend folder.")
     except ValueError as e:
         print(f"Error: {e}")
