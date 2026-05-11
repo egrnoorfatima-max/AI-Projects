@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import './App.css';
 
-//const API_BASE = 'https://ai-projects-jj5i.onrender.com';
-const API_BASE = 'http://localhost:8000';
+const API_BASE = 'https://ai-projects-jj5i.onrender.com';
+//const API_BASE = 'http://localhost:8000';
 
 function App() {
   const [activeTab, setActiveTab] = useState('jobs');

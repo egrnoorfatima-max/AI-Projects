@@ -166,6 +166,7 @@ async def create_job_description(request: JobDescriptionCreate, db: Session = De
         db.add(jd)
         db.commit()
         db.refresh(jd)
+        
         return {
             "id": jd.id,
             "title": jd.title,
