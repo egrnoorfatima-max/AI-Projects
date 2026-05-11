@@ -6,14 +6,17 @@ import shutil
 from parser import parse_resume, match_jd
 
 # Create uploads folder if it doesn't exist
-os.makedirs("uploads", exist_ok=True) 
+os.makedirs("uploads", exist_ok=True)
+
+# Read port from environment variable
+port = int(os.getenv("PORT", 8000))
 
 app = FastAPI(title="Resume Parser API")
 
-# Add CORS middleware
+# Add CORS middleware - allow all origins for deployment
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,3 +65,8 @@ async def match_jd_endpoint(request: MatchJDRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+# Entry point for deployment
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=port)
