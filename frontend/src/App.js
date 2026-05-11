@@ -21,7 +21,7 @@ function App() {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const response = await axios.post('http://localhost:8000/parse-resume', formData, {
+      const response = await axios.post('https://ai-projects-jj5i.onrender.com/parse-resume', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setParsedData(response.data);
@@ -36,7 +36,7 @@ function App() {
     setLoading(true);
     setError('');
     try {
-      const response = await axios.post('http://localhost:8000/match-jd', {
+      const response = await axios.post('https://ai-projects-jj5i.onrender.com/match-jd', {
         resume_data: parsedData,
         jd_text: jdText
       });
