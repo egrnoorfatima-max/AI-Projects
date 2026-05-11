@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -6,6 +6,8 @@ import os
 import shutil
 from parser import parse_resume, match_jd
 from models import SessionLocal, Candidate, JobDescription, MatchResult
+from fastapi.security import OAuth2PasswordRequestForm
+from auth import Token, verify_user, create_access_token, get_current_user
 
 # Create uploads folder if it doesn't exist
 os.makedirs("uploads", exist_ok=True)
@@ -47,8 +49,22 @@ def get_db():
 async def root():
     return {"status": "running", "message": "Resume Parser API"}
 
+@app.post("/login", response_model=Token)
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    # Verify credentials
+    if not verify_user(form_data.username, form_data.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Create access token
+    access_token = create_access_token(data={"sub": form_data.username})
+    return {"access_token": access_token, "token_type": "bearer"}
+
 @app.post("/parse-resume")
-async def parse_resume_endpoint(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def parse_resume_endpoint(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: str = Depends(get_current_user)):
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
     
@@ -96,7 +112,7 @@ async def parse_resume_endpoint(file: UploadFile = File(...), db: Session = Depe
             os.remove(file_path)
 
 @app.post("/match-jd")
-async def match_jd_endpoint(request: MatchJDRequest, db: Session = Depends(get_db)):
+async def match_jd_endpoint(request: MatchJDRequest, db: Session = Depends(get_db), current_user: str = Depends(get_current_user)):
     try:
         match_result = match_jd(request.resume_data, request.jd_text)
 
@@ -131,7 +147,7 @@ async def match_jd_endpoint(request: MatchJDRequest, db: Session = Depends(get_d
 # Entry point for deployment
 
 @app.get("/candidates")
-async def get_candidates(db: Session = Depends(get_db)):
+async def get_candidates(db: Session = Depends(get_db), current_user: str = Depends(get_current_user)):
     try:
         candidates = db.query(Candidate).order_by(Candidate.uploaded_at.desc()).all()
         return [
@@ -157,7 +173,7 @@ async def get_candidates(db: Session = Depends(get_db)):
 
 
 @app.post("/job-descriptions")
-async def create_job_description(request: JobDescriptionCreate, db: Session = Depends(get_db)):
+async def create_job_description(request: JobDescriptionCreate, db: Session = Depends(get_db), current_user: str = Depends(get_current_user)):
     try:
         jd = JobDescription(
             title=request.title,
@@ -179,7 +195,7 @@ async def create_job_description(request: JobDescriptionCreate, db: Session = De
 
 
 @app.get("/job-descriptions")
-async def get_job_descriptions(db: Session = Depends(get_db)):
+async def get_job_descriptions(db: Session = Depends(get_db), current_user: str = Depends(get_current_user)):
     try:
         job_descriptions = (
             db.query(JobDescription)

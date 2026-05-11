@@ -2,10 +2,15 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import './App.css';
 
-const API_BASE = 'https://ai-projects-jj5i.onrender.com';
 //const API_BASE = 'http://localhost:8000';
+const API_BASE = 'https://ai-projects-jj5i.onrender.com';
 
 function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [token, setToken] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
   const [activeTab, setActiveTab] = useState('jobs');
   const [jds, setJds] = useState([]);
   const [jobTitle, setJobTitle] = useState('');
@@ -21,11 +26,81 @@ function App() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchJobDescriptions();
-    if (activeTab === 'candidates') {
-      fetchCandidates();
+    // Check for existing token on app load
+    const storedToken = localStorage.getItem('token');
+    if (storedToken) {
+      setToken(storedToken);
+      setIsLoggedIn(true);
     }
-  }, [activeTab]);
+
+    // Setup axios interceptors
+    // Request interceptor to add Authorization header
+    axios.interceptors.request.use(
+      (config) => {
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+
+    // Response interceptor to handle 401 errors
+    axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401) {
+          handleLogout();
+        }
+        return Promise.reject(error);
+      }
+    );
+  }, [token]);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchJobDescriptions();
+      if (activeTab === 'candidates') {
+        fetchCandidates();
+      }
+    }
+  }, [activeTab, isLoggedIn]);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+
+    try {
+      const formData = new URLSearchParams();
+      formData.append('username', email);
+      formData.append('password', password);
+
+      const response = await axios.post(`${API_BASE}/login`, formData, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+
+      const { access_token } = response.data;
+      localStorage.setItem('token', access_token);
+      setToken(access_token);
+      setIsLoggedIn(true);
+      setEmail('');
+      setPassword('');
+    } catch (err) {
+      setLoginError('Invalid email or password');
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setToken('');
+    setIsLoggedIn(false);
+    setActiveTab('jobs');
+    setJds([]);
+    setCandidates([]);
+    setParsedData(null);
+    setMatchResult(null);
+    setError('');
+  };
 
   const fetchJobDescriptions = async () => {
     try {
@@ -142,9 +217,41 @@ function App() {
 
   const selectedJD = jds.find((job) => job.id === selectedJdId);
 
+  if (!isLoggedIn) {
+    return (
+      <div className="app login-container">
+        <div className="login-form">
+          <h1>Resume Parser Dashboard</h1>
+          <h2>Login</h2>
+          <form onSubmit={handleLogin}>
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button type="submit">Login</button>
+          </form>
+          {loginError && <div className="error">{loginError}</div>}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
-      <h1>Resume Parser Dashboard</h1>
+      <div className="header">
+        <h1>Resume Parser Dashboard</h1>
+        <button className="logout-button" onClick={handleLogout}>Logout</button>
+      </div>
 
       <div className="tabs">
         <button
