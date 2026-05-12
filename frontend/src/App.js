@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import './App.css';
+import React, { useState, useEffect, useCallback } from 'react';
 
 //const API_BASE = 'http://localhost:8000';
 const API_BASE_PROD = 'https://ai-projects-jj5i.onrender.com';
@@ -46,26 +47,26 @@ function App() {
     fetchData();
   }, [token, currentPage]);
 
-  const fetchData = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      if (currentPage === 'applicants') {
-        const response = await axios.get(`${API_BASE}/candidates`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setCandidates(response.data || []);
-      } else if (currentPage === 'positions') {
-        const response = await axios.get(`${API_BASE}/job-descriptions`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setJobDescriptions(response.data || []);
-      }
-    } catch (err) {
-      setError('Failed to load data: ' + (err.response?.data?.detail || err.message));
+  const fetchData = useCallback(async () => {
+  setLoading(true);
+  setError('');
+  try {
+    if (currentPage === 'applicants') {
+      const response = await axios.get(`${API_BASE}/candidates`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCandidates(response.data || []);
+    } else if (currentPage === 'positions') {
+      const response = await axios.get(`${API_BASE}/job-descriptions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setJobDescriptions(response.data || []);
     }
-    setLoading(false);
-  };
+  } catch (err) {
+    setError('Failed to load data: ' + (err.response?.data?.detail || err.message));
+  }
+  setLoading(false);
+}, [currentPage, token]);
 
   const handleUploadResume = async () => {
     if (!uploadFile) {
