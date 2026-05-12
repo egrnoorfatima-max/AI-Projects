@@ -39,35 +39,37 @@ function App() {
     status: 'open',
   });
 
-  useEffect(() => {
-    if (!token) {
-      return;
-    }
-    fetchData();
-  }, [fetchData]);
-
+  // MOVE fetchData HERE - BEFORE useEffect
   const fetchData = useCallback(async () => {
-  setLoading(true);
-  setError('');
-  try {
-    if (currentPage === 'applicants') {
-      const response = await axios.get(`${API_BASE}/candidates`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setCandidates(response.data || []);
-    } else if (currentPage === 'positions') {
-      const response = await axios.get(`${API_BASE}/job-descriptions`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setJobDescriptions(response.data || []);
+    setLoading(true);
+    setError('');
+    try {
+      if (currentPage === 'applicants') {
+        const response = await axios.get(`${API_BASE}/candidates`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setCandidates(response.data || []);
+      } else if (currentPage === 'positions') {
+        const response = await axios.get(`${API_BASE}/job-descriptions`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setJobDescriptions(response.data || []);
+      }
+    } catch (err) {
+      setError('Failed to load data: ' + (err.response?.data?.detail || err.message));
     }
-  } catch (err) {
-    setError('Failed to load data: ' + (err.response?.data?.detail || err.message));
-  }
-  setLoading(false);
-}, [currentPage, token]);
+    setLoading(false);
+  }, [currentPage, token]);
+
+  // NOW useEffect can use fetchData
+  useEffect(() => {
+    if (token) {
+      fetchData();
+    }
+  }, [fetchData, token]);
 
   const handleUploadResume = async () => {
+    // rest of your code...
     if (!uploadFile) {
       setError('Please select a file');
       return;
