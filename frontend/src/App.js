@@ -3,7 +3,7 @@ import axios from 'axios';
 import './App.css';
 
 //const API_BASE = 'http://localhost:8000';
-const API_BASE_PROD = 'https://ai-projects-jj5i.onrender.com';
+const API_BASE = 'https://ai-projects-jj5i.onrender.com';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('applicants');
