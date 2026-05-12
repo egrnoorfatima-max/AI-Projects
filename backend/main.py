@@ -35,6 +35,11 @@ class MatchJDRequest(BaseModel):
 class JobDescriptionCreate(BaseModel):
     title: str
     description: str
+    team: str | None = None
+    manager: str | None = None
+    assigned_to: str | None = None
+    start_date: str | None = None  # ISO format datetime string
+    status: str = "open"
 
 
 def get_db():
@@ -175,9 +180,15 @@ async def get_candidates(db: Session = Depends(get_db), current_user: str = Depe
 @app.post("/job-descriptions")
 async def create_job_description(request: JobDescriptionCreate, db: Session = Depends(get_db), current_user: str = Depends(get_current_user)):
     try:
+        from datetime import datetime
         jd = JobDescription(
             title=request.title,
             description=request.description,
+            team=request.team,
+            manager=request.manager,
+            assigned_to=request.assigned_to,
+            start_date=datetime.fromisoformat(request.start_date) if request.start_date else None,
+            status=request.status,
         )
         db.add(jd)
         db.commit()
@@ -189,7 +200,14 @@ async def create_job_description(request: JobDescriptionCreate, db: Session = De
             "description": jd.description,
             "created_at": jd.created_at,
             "status": jd.status,
+            "team": jd.team,
+            "manager": jd.manager,
+            "assigned_to": jd.assigned_to,
+            "start_date": jd.start_date,
+            "age_days": jd.age_days,
         }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid start_date format: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
@@ -199,7 +217,7 @@ async def get_job_descriptions(db: Session = Depends(get_db), current_user: str 
     try:
         job_descriptions = (
             db.query(JobDescription)
-            .filter(JobDescription.status == "active")
+            .filter(JobDescription.status != "closed")
             .order_by(JobDescription.created_at.desc())
             .all()
         )
@@ -210,9 +228,70 @@ async def get_job_descriptions(db: Session = Depends(get_db), current_user: str 
                 "description": jd.description,
                 "created_at": jd.created_at,
                 "status": jd.status,
+                "team": jd.team,
+                "manager": jd.manager,
+                "assigned_to": jd.assigned_to,
+                "start_date": jd.start_date,
+                "age_days": jd.age_days,
             }
             for jd in job_descriptions
         ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+class JobDescriptionUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    team: str | None = None
+    manager: str | None = None
+    assigned_to: str | None = None
+    start_date: str | None = None
+    status: str | None = None
+
+
+@app.patch("/job-descriptions/{jd_id}")
+async def update_job_description(jd_id: int, request: JobDescriptionUpdate, db: Session = Depends(get_db), current_user: str = Depends(get_current_user)):
+    try:
+        from datetime import datetime
+        jd = db.query(JobDescription).filter(JobDescription.id == jd_id).first()
+        
+        if not jd:
+            raise HTTPException(status_code=404, detail="Job description not found")
+        
+        # Update only provided fields
+        if request.title is not None:
+            jd.title = request.title
+        if request.description is not None:
+            jd.description = request.description
+        if request.team is not None:
+            jd.team = request.team
+        if request.manager is not None:
+            jd.manager = request.manager
+        if request.assigned_to is not None:
+            jd.assigned_to = request.assigned_to
+        if request.start_date is not None:
+            jd.start_date = datetime.fromisoformat(request.start_date)
+        if request.status is not None:
+            jd.status = request.status
+        
+        db.commit()
+        db.refresh(jd)
+        
+        return {
+            "id": jd.id,
+            "title": jd.title,
+            "description": jd.description,
+            "created_at": jd.created_at,
+            "status": jd.status,
+            "team": jd.team,
+            "manager": jd.manager,
+            "assigned_to": jd.assigned_to,
+            "start_date": jd.start_date,
+            "age_days": jd.age_days,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid start_date format: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 

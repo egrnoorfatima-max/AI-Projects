@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, create_engine
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
 
@@ -16,10 +16,21 @@ class JobDescription(Base):
     title = Column(String(200))
     description = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
-    status = Column(String(20), default='active')
+    status = Column(String(20), default='open')  # Valid values: 'open', 'closed', 'on_hold'
+    team = Column(String(200))
+    manager = Column(String(200))
+    assigned_to = Column(String(200))
+    start_date = Column(DateTime)
     
     # Relationship to MatchResult
     match_results = relationship("MatchResult", back_populates="job_description")
+    
+    @property
+    def age_days(self):
+        """Computed property: days since position was opened"""
+        if self.start_date:
+            return (datetime.utcnow() - self.start_date).days
+        return None
 
 
 class Candidate(Base):
