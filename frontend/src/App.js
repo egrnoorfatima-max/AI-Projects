@@ -44,7 +44,7 @@ function App() {
       return;
     }
     fetchData();
-  }, [token, currentPage]);
+  }, [fetchData]);
 
   const fetchData = useCallback(async () => {
   setLoading(true);
