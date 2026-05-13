@@ -21,7 +21,10 @@ class JobDescription(Base):
     manager = Column(String(200))
     assigned_to = Column(String(200))
     start_date = Column(DateTime)
-    
+    hired_candidate_name = Column(String(200), nullable=True)
+    hired_candidate_email = Column(String(200), nullable=True)
+    status_comment = Column(Text, nullable=True)
+
     # Relationship to MatchResult
     match_results = relationship("MatchResult", back_populates="job_description")
     
@@ -49,7 +52,9 @@ class Candidate(Base):
     employment_history = Column(JSON)
     pdf_filename = Column(String(500))
     uploaded_at = Column(DateTime, default=datetime.utcnow)
-    
+    status = Column(String(50), default="New")
+    latest_comment = Column(Text, nullable=True)
+
     # Relationship to MatchResult
     match_results = relationship("MatchResult", back_populates="candidate")
 

@@ -267,6 +267,222 @@ body {
   min-width: 120px;
 }
 
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 16px 24px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 9999;
+  animation: slideIn 0.3s ease-out;
+}
+
+.toast.success {
+  background: #10b981;
+  color: white;
+}
+
+.toast.error {
+  background: #ef4444;
+  color: white;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+/* THREE-DOT MENU */
+.dot-menu-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: #64748b;
+  padding: 4px 8px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.dot-menu-btn:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.dot-menu-dropdown {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 500;
+  min-width: 160px;
+  overflow: hidden;
+}
+
+.dot-menu-dropdown button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #334155;
+}
+
+.dot-menu-dropdown button:last-child {
+  border-bottom: none;
+}
+
+.dot-menu-dropdown button:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+/* TABLE TOOLBAR (filters + export) */
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.filter-group select {
+  padding: 6px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  background: white;
+  cursor: pointer;
+  color: #334155;
+}
+
+.filter-group select:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.btn-excel {
+     background: #217346;
+     color: white;
+     border: none;
+   }
+   
+.btn-excel:hover {
+  background: #1a5c37;
+}
+
+/* PER-PAGE SELECTOR */
+.per-page-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.per-page-selector select {
+  padding: 6px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  background: white;
+  cursor: pointer;
+}
+
+/* PAGINATION */
+.pagination-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 0;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.pagination-left {
+  flex-shrink: 0;
+}
+
+.pagination-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.pagination-info {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-page {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: white;
+  color: #334155;
+  font-size: 0.875rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-page:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.btn-page.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: white;
+  font-weight: 600;
+}
+
+.btn-page:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-dots {
+  padding: 0 4px;
+  color: #94a3b8;
+  font-size: 0.875rem;
+  user-select: none;
+}
+
 .profile-menu button {
   width: 100%;
   padding: 10px 16px;
@@ -320,7 +536,10 @@ body {
 }
 
 .page-controls {
+  display: flex;
+  align-items: center;
   margin-bottom: 20px;
+  gap: 12px;
 }
 
 .search-input {
@@ -385,7 +604,6 @@ body {
   font-weight: 600;
   color: #64748b;
   font-size: 0.85rem;
-  text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
@@ -450,6 +668,11 @@ body {
 .badge-on_hold {
   background-color: #fef3c7;
   color: #92400e;
+}
+
+.badge-in_progress {
+  background-color: #dbeafe;
+  color: #1e40af;
 }
 
 .badge-skill {
@@ -627,6 +850,309 @@ body {
 .candidate-details strong,
 .position-details strong {
   color: #1e293b;
+}
+
+/* TABLE WRAPPER */
+.table-wrapper {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 300px);
+}
+
+.table-wrapper thead th {
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 10;
+}
+
+/* SCORE BADGE */
+.score-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+}
+
+.score-badge:hover {
+  opacity: 0.85;
+}
+
+.score-badge-large {
+  font-size: 2rem;
+  padding: 12px 24px;
+  border-radius: 12px;
+  cursor: default;
+}
+
+.score-high {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.score-medium {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.score-low {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+/* STATUS BADGE */
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.status-new {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.status-green {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.status-red {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.status-gray {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+/* TEXT MUTED */
+.text-muted {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+/* COMMENT CELL */
+.comment-cell {
+  font-size: 0.85rem;
+  color: #64748b;
+  max-width: 160px;
+}
+
+/* MATCH BREAKDOWN MODAL */
+.match-modal {
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.match-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.match-overall {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.match-overall-label {
+  font-size: 1rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.match-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.match-section h3 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.match-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* PROGRESS BAR */
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.progress-label {
+  width: 110px;
+  font-size: 0.875rem;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 8px;
+  background-color: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.progress-high { background-color: #10b981; }
+.progress-medium { background-color: #f59e0b; }
+.progress-low { background-color: #ef4444; }
+
+.progress-value {
+  width: 36px;
+  text-align: right;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+/* SKILLS */
+.skills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.badge-match-skill {
+  background-color: #dcfce7;
+  color: #166534;
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.badge-missing-skill {
+  background-color: #fee2e2;
+  color: #991b1b;
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+/* MATCH LISTS */
+.match-list {
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.match-list li {
+  font-size: 0.875rem;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.match-list-green li::marker { color: #10b981; }
+.match-list-red li::marker { color: #ef4444; }
+
+/* SCORECARD TABLE */
+.scorecard-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.scorecard-table th {
+  padding: 8px 12px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  text-align: left;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.scorecard-table td {
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+}
+
+.scorecard-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+/* RECOMMENDATION BANNER */
+.recommendation-banner {
+  padding: 16px 20px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.recommendation-banner strong {
+  font-size: 1rem;
+}
+
+.recommendation-banner p {
+  font-size: 0.875rem;
+  margin: 0;
+  opacity: 0.9;
+}
+
+.recommendation-green {
+  background-color: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.recommendation-yellow {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.recommendation-red {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.recommendation-gray {
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+/* MATCH SUMMARY */
+.match-summary {
+  font-size: 0.9rem;
+  color: #475569;
+  line-height: 1.6;
 }
 
 /* RESPONSIVE */

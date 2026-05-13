@@ -206,19 +206,32 @@ The JSON must have these exact fields:
     try:
         match_result = json.loads(ai_response)
         return match_result
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        print("="*50)
+        print("JSON DECODE ERROR")
+        print("="*50)
+        print(f"Error: {str(e)}")
+        print(f"Error position: {e.pos}")
+        print("\nCleaned AI Response:")
+        print(ai_response)
+        print("="*50)
+
         try:
             json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
             if json_match:
                 json_str = json_match.group(0)
+                print("\nExtracted JSON:")
+                print(json_str)
                 match_result = json.loads(json_str)
                 return match_result
             else:
-                raise json.JSONDecodeError("No JSON found", "", 0)
-        except json.JSONDecodeError:
-            print("Raw response from AI:")
-            print(ai_response)
-            raise ValueError("AI did not return valid JSON")
+                raise ValueError("No JSON object found in AI response")
+        except json.JSONDecodeError as e2:
+            print(f"\nSecond parse attempt failed: {str(e2)}")
+            raise ValueError(f"AI did not return valid JSON. Error: {str(e)}")
+        except Exception as e3:
+            print(f"\nUnexpected error: {str(e3)}")
+            raise ValueError(f"Failed to parse AI response: {str(e3)}")
 
     
 # Test parse_resume with sample_resume.pdf
