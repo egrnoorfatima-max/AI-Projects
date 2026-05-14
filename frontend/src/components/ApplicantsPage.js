@@ -912,34 +912,6 @@ function UploadResumeModal({ onClose, onUpload, file, setFile, positions, select
   );
 }
 
-function CandidateDetailsModal({ candidate, onClose }) {
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>{candidate.name}</h2>
-          <button className="close-btn" onClick={onClose}>×</button>
-        </div>
-        <div className="modal-body">
-          <div className="candidate-details">
-            <p><strong>Email:</strong> {candidate.email}</p>
-            <p><strong>Phone:</strong> {candidate.phone}</p>
-            <p><strong>Location:</strong> {candidate.location}</p>
-            <p><strong>Experience:</strong> {candidate.total_years_experience} years</p>
-            <p><strong>Current Role:</strong> {candidate.current_role}</p>
-            <p><strong>Company:</strong> {candidate.current_company}</p>
-            <div>
-              <strong>Skills:</strong>
-              {candidate.skills?.map((skill) => (
-                <span key={skill} className="badge badge-skill">{skill}</span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ReEvaluateModal({ candidate, positions, onClose, onEvaluate }) {
   const [selectedJdId, setSelectedJdId] = useState('');

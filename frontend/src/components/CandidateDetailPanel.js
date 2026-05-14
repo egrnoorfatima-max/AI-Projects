@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 export default function CandidateDetailPanel({ candidate, onClose, API_BASE, token }) {
@@ -9,14 +9,7 @@ export default function CandidateDetailPanel({ candidate, onClose, API_BASE, tok
   const [selectedHistoricalMatch, setSelectedHistoricalMatch] = useState(null);
   const [loadingHistorical, setLoadingHistorical] = useState(false);
 
-  useEffect(() => {
-    if (candidate.latest_match?.id) {
-      fetchMatchDetails(candidate.latest_match.id, setLatestMatchDetails, setLoadingMatch);
-    }
-    fetchApplications();
-  }, [candidate.id]);
-
-  const fetchMatchDetails = async (matchId, setData, setLoading) => {
+  const fetchMatchDetails = useCallback(async (matchId, setData, setLoading) => {
     setLoading(true);
     try {
       const res = await axios.get(`${API_BASE}/match-results/${matchId}`, {
@@ -28,9 +21,9 @@ export default function CandidateDetailPanel({ candidate, onClose, API_BASE, tok
     } finally {
       setLoading(false);
     }
-  };
+  }, [API_BASE, token]);
 
-  const fetchApplications = async () => {
+  const fetchApplications = useCallback(async () => {
     setLoadingApps(true);
     try {
       const res = await axios.get(`${API_BASE}/candidates/${candidate.id}/applications`, {
@@ -42,7 +35,14 @@ export default function CandidateDetailPanel({ candidate, onClose, API_BASE, tok
     } finally {
       setLoadingApps(false);
     }
-  };
+  }, [API_BASE, token, candidate.id]);
+
+  useEffect(() => {
+    if (candidate.latest_match?.id) {
+      fetchMatchDetails(candidate.latest_match.id, setLatestMatchDetails, setLoadingMatch);
+    }
+    fetchApplications();
+  }, [candidate.latest_match?.id, fetchMatchDetails, fetchApplications]);
 
   const handleViewHistoricalDetails = (app) => {
     if (selectedHistoricalMatch?.id === app.match_id) {
