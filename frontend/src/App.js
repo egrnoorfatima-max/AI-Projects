@@ -10,7 +10,6 @@ const API_BASE = "https://ai-projects-jj5i.onrender.com"
 //"http://127.0.0.1:8000"
 
 
-
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));

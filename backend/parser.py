@@ -201,37 +201,73 @@ The JSON must have these exact fields:
     # Fix common JSON errors
     ai_response = ai_response.replace('"role_alignment": {"rating"', '"role_alignment": {"rating"').replace('reason": "..."]', 'reason": "..."}')
     ai_response = re.sub(r'\]([\s]*\})', r'}\1', ai_response)
-    
-    # Try to parse the JSON response
+    # Fix stray closing parenthesis before closing brace
+    ai_response = re.sub(r'"\)\s*}', '"}', ai_response)
+    # Fix stray closing parenthesis before comma
+    ai_response = re.sub(r'"\)\s*,', '",', ai_response)
+    # Remove any ) that appears right after a closing quote
+    ai_response = re.sub(r'"\)', '"', ai_response)
+
+    # Try to parse the cleaned JSON
     try:
         match_result = json.loads(ai_response)
+
+        required_fields = ['overall_score', 'score_breakdown', 'matching_skills',
+                           'missing_skills', 'strong_points', 'scorecard',
+                           'summary', 'hire_recommendation']
+        for field in required_fields:
+            if field not in match_result:
+                raise ValueError(f"Missing required field: {field}")
+
         return match_result
+
     except json.JSONDecodeError as e:
         print("="*50)
-        print("JSON DECODE ERROR")
+        print("JSON DECODE ERROR - First Attempt")
         print("="*50)
         print(f"Error: {str(e)}")
-        print(f"Error position: {e.pos}")
-        print("\nCleaned AI Response:")
-        print(ai_response)
-        print("="*50)
+        print(f"Position: {e.pos}")
+        if e.pos < len(ai_response):
+            start = max(0, e.pos - 50)
+            end = min(len(ai_response), e.pos + 50)
+            print(f"\nContext around error:\n...{ai_response[start:end]}...")
+            print(f"Problem character: '{ai_response[e.pos]}' at position {e.pos}")
+
+        # Remove trailing commas before closing braces/brackets
+        fixed_response = re.sub(r',(\s*[}\]])', r'\1', ai_response)
+
+        # Add missing closing braces if response was truncated
+        if not fixed_response.rstrip().endswith('}'):
+            open_braces = fixed_response.count('{')
+            close_braces = fixed_response.count('}')
+            if open_braces > close_braces:
+                fixed_response += '\n}' * (open_braces - close_braces)
 
         try:
+            match_result = json.loads(fixed_response)
+            print("Successfully parsed after fixing!")
+            return match_result
+        except json.JSONDecodeError:
+            print("\nAttempting regex extraction...")
             json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
             if json_match:
                 json_str = json_match.group(0)
-                print("\nExtracted JSON:")
-                print(json_str)
-                match_result = json.loads(json_str)
-                return match_result
-            else:
-                raise ValueError("No JSON object found in AI response")
-        except json.JSONDecodeError as e2:
-            print(f"\nSecond parse attempt failed: {str(e2)}")
-            raise ValueError(f"AI did not return valid JSON. Error: {str(e)}")
-        except Exception as e3:
-            print(f"\nUnexpected error: {str(e3)}")
-            raise ValueError(f"Failed to parse AI response: {str(e3)}")
+                try:
+                    open_braces = json_str.count('{')
+                    close_braces = json_str.count('}')
+                    if open_braces > close_braces:
+                        json_str += '}' * (open_braces - close_braces)
+                    match_result = json.loads(json_str)
+                    print("Extracted and parsed successfully!")
+                    return match_result
+                except json.JSONDecodeError:
+                    pass
+
+        print("\nAll parsing attempts failed!")
+        print("Raw AI response:")
+        print(ai_response[:500])
+        print("...")
+        raise ValueError(f"AI returned invalid JSON after multiple attempts: {str(e)}")
 
     
 # Test parse_resume with sample_resume.pdf

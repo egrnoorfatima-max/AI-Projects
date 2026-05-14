@@ -51,6 +51,7 @@ class Candidate(Base):
     education = Column(JSON)
     employment_history = Column(JSON)
     pdf_filename = Column(String(500))
+    s3_key = Column(String(500), nullable=True)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String(50), default="New")
     latest_comment = Column(Text, nullable=True)
@@ -61,7 +62,7 @@ class Candidate(Base):
 
 class MatchResult(Base):
     __tablename__ = "match_results"
-    
+
     id = Column(Integer, primary_key=True)
     candidate_id = Column(Integer, ForeignKey('candidates.id'))
     jd_id = Column(Integer, ForeignKey('job_descriptions.id'))
@@ -75,8 +76,11 @@ class MatchResult(Base):
     hire_recommendation = Column(String(50))
     recommendation_reason = Column(Text)
     summary = Column(Text)
+    status = Column(String(50), default="New")
+    comments = Column(Text, nullable=True)
+    resume_s3_key = Column(String(500), nullable=True)
     matched_at = Column(DateTime, default=datetime.utcnow)
-    
+
     # Relationships
     candidate = relationship("Candidate", back_populates="match_results")
     job_description = relationship("JobDescription", back_populates="match_results")

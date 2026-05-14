@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
+import CandidateDetailPanel from './CandidateDetailPanel';
 
 function ApplicantsPage({ API_BASE, token, onError }) {
   const [candidates, setCandidates] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [selectedCandidateDetail, setSelectedCandidateDetail] = useState(null);
   const [uploadFile, setUploadFile] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [positions, setPositions] = useState([]);
@@ -80,8 +81,8 @@ function ApplicantsPage({ API_BASE, token, onError }) {
 
 
   const handleUploadResume = async () => {
-    if (!uploadFile) {
-      setToast({ type: 'error', message: 'Please select a file' });
+    if (!uploadFile || uploadFile.length === 0) {
+      setToast({ type: 'error', message: 'Please select at least one file' });
       return;
     }
     if (!selectedPosition) {
@@ -89,45 +90,65 @@ function ApplicantsPage({ API_BASE, token, onError }) {
       return;
     }
 
-    const fileToUpload = uploadFile;
     const jdToMatch = selectedPosition;
+    const filesToUpload = Array.from(uploadFile);
+
     setShowUploadModal(false);
     setUploadFile(null);
     setSelectedPosition(null);
     setProcessing(true);
 
-    try {
-      const formData = new FormData();
-      formData.append('file', fileToUpload);
+    const results = { success: [], parseFailed: [], matchFailed: [] };
 
-      const parseResponse = await axios.post(`${API_BASE}/parse-resume`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` },
-      });
-
-      if (!parseResponse?.data?.id) {
-        throw new Error('Invalid parse response');
-      }
-
+    for (const file of filesToUpload) {
       try {
-        await axios.post(`${API_BASE}/match-jd`, {
-          candidate_id: parseResponse.data.id,
-          jd_id: jdToMatch.id,
-          resume_data: parseResponse.data,
-          jd_text: jdToMatch.description,
-        }, {
-          headers: { Authorization: `Bearer ${token}` },
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const parseResponse = await axios.post(`${API_BASE}/parse-resume`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` },
         });
-        setToast({ type: 'success', message: 'Resume uploaded and matched successfully!' });
-      } catch (matchError) {
-        const reason = matchError.response?.data?.detail || matchError.message || 'Unknown error';
-        console.error('Match-JD failed:', reason, matchError);
-        setToast({ type: 'error', message: `Matching failed: ${reason}` });
+
+        if (!parseResponse?.data?.id) throw new Error('Invalid parse response');
+
+        try {
+          await axios.post(`${API_BASE}/match-jd`, {
+            candidate_id: parseResponse.data.id,
+            jd_id: jdToMatch.id,
+            resume_data: parseResponse.data,
+            jd_text: jdToMatch.description,
+          }, { headers: { Authorization: `Bearer ${token}` } });
+          results.success.push(file.name);
+        } catch (matchError) {
+          console.error(`Match failed for ${file.name}:`, matchError);
+          results.matchFailed.push({
+            file: file.name,
+            error: matchError.response?.data?.detail || matchError.message,
+          });
+        }
+      } catch (parseError) {
+        console.error(`Parse failed for ${file.name}:`, parseError);
+        results.parseFailed.push({
+          file: file.name,
+          error: parseError.response?.data?.detail || parseError.message,
+        });
       }
-    } catch (parseError) {
-      setToast({ type: 'error', message: 'Failed to parse resume' });
-    } finally {
-      await fetchCandidates();
-      setProcessing(false);
+    }
+
+    await fetchCandidates();
+    setProcessing(false);
+
+    if (results.success.length === filesToUpload.length) {
+      setToast({ type: 'success', message: `Successfully uploaded ${results.success.length} resume(s)` });
+    } else {
+      const failedFiles = [
+        ...results.parseFailed.map(f => `${f.file} (parse failed)`),
+        ...results.matchFailed.map(f => `${f.file} (matching failed)`),
+      ].join(', ');
+      setToast({
+        type: results.success.length > 0 ? 'warning' : 'error',
+        message: `Uploaded ${results.success.length} of ${filesToUpload.length}. Failed: ${failedFiles}`,
+      });
     }
   };
 
@@ -144,11 +165,18 @@ function ApplicantsPage({ API_BASE, token, onError }) {
   };
 
   const handleStatusUpdate = async (status, comment) => {
-    const candidate = statusModal.candidate;
+    const matchId = statusModal.candidate.latest_match?.id;
+
+    if (!matchId) {
+      setToast({ type: 'error', message: 'No match found for this candidate' });
+      setStatusModal(null);
+      return;
+    }
+
     setStatusModal(null);
     try {
       await axios.patch(
-        `${API_BASE}/candidates/${candidate.id}/status`,
+        `${API_BASE}/match-results/${matchId}/status`,
         { status, comment: comment || null },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -156,6 +184,23 @@ function ApplicantsPage({ API_BASE, token, onError }) {
       await fetchCandidates();
     } catch (err) {
       setToast({ type: 'error', message: 'Failed to update status: ' + (err.response?.data?.detail || err.message) });
+    }
+  };
+
+  const handleViewResume = async (candidateId) => {
+    setOpenMenuId(null);
+    setMenuAnchor(null);
+    try {
+      const response = await axios.get(
+        `${API_BASE}/candidates/${candidateId}/resume-url`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      window.open(response.data.url, '_blank');
+    } catch (err) {
+      setToast({
+        type: 'error',
+        message: 'Failed to load resume: ' + (err.response?.data?.detail || err.message),
+      });
     }
   };
 
@@ -211,7 +256,7 @@ function ApplicantsPage({ API_BASE, token, onError }) {
     const matchesSearch = !searchTerm ||
       c.name?.toLowerCase().includes(search) ||
       c.email?.toLowerCase().includes(search);
-    const matchesStatus = filterStatus === 'All' || (c.status || 'New') === filterStatus;
+    const matchesStatus = filterStatus === 'All' || (c.latest_match?.status || 'New') === filterStatus;
     const matchesPosition = filterPosition === 'All' || c.latest_match?.position_title === filterPosition;
     const pos = positionMap[c.latest_match?.position_id];
     const matchesAssignedTo = filterAssignedTo === 'All' || pos?.assigned_to === filterAssignedTo;
@@ -240,8 +285,8 @@ function ApplicantsPage({ API_BASE, token, onError }) {
       'Experience Match': c.latest_match?.score_breakdown?.experience_match || '-',
       'Education Match': c.latest_match?.score_breakdown?.education_match || '-',
       'Hire Recommendation': c.latest_match?.hire_recommendation || '-',
-      'Status': c.status || 'New',
-      'Comments': c.latest_comment || '-',
+      'Status': c.latest_match?.status || 'New',
+      'Comments': c.latest_match?.comments || '-',
       'Uploaded Date': new Date(c.uploaded_at).toLocaleDateString(),
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -261,10 +306,15 @@ function ApplicantsPage({ API_BASE, token, onError }) {
       {/* Fixed-position dot menu dropdown rendered outside table to avoid overflow clipping */}
       {openMenuId && menuAnchor && (
         <div className="dot-menu-dropdown" style={{ top: menuAnchor.top, right: menuAnchor.right }}>
+          {candidates.find(c => c.id === openMenuId)?.s3_key && (
+            <button onClick={() => handleViewResume(openMenuId)}>
+              View Resume
+            </button>
+          )}
           <button
             onClick={() => {
               const candidate = candidates.find(c => c.id === openMenuId);
-              setSelectedCandidate(candidate);
+              setSelectedCandidateDetail(candidate);
               setOpenMenuId(null);
               setMenuAnchor(null);
             }}
@@ -294,7 +344,7 @@ function ApplicantsPage({ API_BASE, token, onError }) {
         </div>
       )}
 
-      <div className="page">
+      <div className={`page${selectedCandidateDetail ? ' with-panel' : ''}`}>
         <div className="page-header">
           <h1>Applicants ({filteredCandidates.length})</h1>
           <button
@@ -305,7 +355,14 @@ function ApplicantsPage({ API_BASE, token, onError }) {
             }}
             disabled={processing}
           >
-            Upload New Resume
+            {processing ? (
+              <>
+                <span className="spinner"></span>
+                Processing...
+              </>
+            ) : (
+              'Upload New Resume'
+            )}
           </button>
         </div>
 
@@ -381,12 +438,19 @@ function ApplicantsPage({ API_BASE, token, onError }) {
                 </tr>
               ) : (
                 paginatedCandidates.map((candidate) => (
-                  <tr key={candidate.id} onClick={() => setSelectedCandidate(candidate)} className="table-row">
+                  <tr key={candidate.id} className="table-row">
                     <td><input type="checkbox" onClick={(e) => e.stopPropagation()} /></td>
                     <td>
                       <div className="avatar">{candidate.name?.[0]?.toUpperCase()}</div>
                     </td>
-                    <td className="font-weight-600">{candidate.name}</td>
+                    <td>
+                      <span
+                        className="candidate-name-link"
+                        onClick={(e) => { e.stopPropagation(); setSelectedCandidateDetail(candidate); }}
+                      >
+                        {candidate.name}
+                      </span>
+                    </td>
                     <td>{candidate.current_role}</td>
                     <td className="text-muted">{candidate.latest_match?.position_title || '-'}</td>
                     <td>
@@ -405,16 +469,22 @@ function ApplicantsPage({ API_BASE, token, onError }) {
                       )}
                     </td>
                     <td>
-                      <span className={`status-badge status-${getStatusClass(candidate.status)}`}>
-                        {candidate.status || 'New'}
+                      <span className={`status-badge status-${getStatusClass(candidate.latest_match?.status)}`}>
+                        {candidate.latest_match?.status || 'New'}
                       </span>
                     </td>
-                    <td className="comment-cell">
-                      {candidate.latest_comment
-                        ? candidate.latest_comment.length > 50
-                          ? candidate.latest_comment.slice(0, 50) + '...'
-                          : candidate.latest_comment
-                        : <span className="text-muted">-</span>}
+                    <td
+                      className="comment-cell"
+                      title={candidate.latest_match?.comments || ''}
+                      style={{
+                        maxWidth: '200px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        cursor: candidate.latest_match?.comments ? 'help' : 'default',
+                      }}
+                    >
+                      {candidate.latest_match?.comments || <span className="text-muted">-</span>}
                     </td>
                     <td>{candidate.email}</td>
                     <td>{candidate.location}</td>
@@ -494,10 +564,12 @@ function ApplicantsPage({ API_BASE, token, onError }) {
         />
       )}
 
-      {selectedCandidate && (
-        <CandidateDetailsModal
-          candidate={selectedCandidate}
-          onClose={() => setSelectedCandidate(null)}
+      {selectedCandidateDetail && (
+        <CandidateDetailPanel
+          candidate={selectedCandidateDetail}
+          onClose={() => setSelectedCandidateDetail(null)}
+          API_BASE={API_BASE}
+          token={token}
         />
       )}
 
@@ -590,12 +662,12 @@ function StatusChangeModal({ candidate, onClose, onSave }) {
     'Rejected by Org',
     'Position Closed',
   ];
-  const [status, setStatus] = useState(candidate.status || 'New');
-  const [comment, setComment] = useState('');
+  const [status, setStatus] = useState(candidate.latest_match?.status || 'New');
+  const [comment, setComment] = useState(candidate.latest_match?.comments || '');
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="modal">
         <div className="modal-header">
           <h2>Update Candidate Status — {candidate.name}</h2>
           <button className="close-btn" onClick={onClose}>×</button>
@@ -789,9 +861,19 @@ function UploadResumeModal({ onClose, onUpload, file, setFile, positions, select
             <input
               type="file"
               accept=".pdf"
-              onChange={(e) => setFile(e.target.files[0])}
+              multiple
+              onChange={(e) => setFile(e.target.files)}
             />
-            {file && <p style={{ marginTop: '5px', color: '#666' }}>Selected: {file.name}</p>}
+            {file && file.length > 0 && (
+              <div style={{ marginTop: '10px' }}>
+                <strong>Selected files ({file.length}):</strong>
+                <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
+                  {Array.from(file).map((f, idx) => (
+                    <li key={idx} style={{ fontSize: '0.875rem', color: '#475569' }}>{f.name}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
           <div style={{ marginBottom: '15px' }}>
             <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
@@ -817,8 +899,12 @@ function UploadResumeModal({ onClose, onUpload, file, setFile, positions, select
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={onUpload} disabled={!file || !selectedPosition}>
-            Save
+          <button
+            className="btn btn-primary"
+            onClick={onUpload}
+            disabled={!file || file.length === 0 || !selectedPosition}
+          >
+            {file && file.length > 1 ? `Upload ${file.length} Resumes` : 'Upload Resume'}
           </button>
         </div>
       </div>
