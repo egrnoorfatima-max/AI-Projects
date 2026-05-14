@@ -1,1 +1,23 @@
 .env
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+env/
+
+# Environment variables
+.env
+
+# Uploads folder (user-generated content)
+uploads/
+
+# PDF files (like Noor.pdf)
+*.pdf
+
+node_modules/
+
+package-lock.json
