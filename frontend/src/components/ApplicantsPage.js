@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import CandidateDetailPanel from './CandidateDetailPanel';
+import ScheduleInterviewModal from './ScheduleInterviewModal';
 
 function ApplicantsPage({ API_BASE, token, onError }) {
   const [candidates, setCandidates] = useState([]);
@@ -23,6 +24,7 @@ function ApplicantsPage({ API_BASE, token, onError }) {
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterPosition, setFilterPosition] = useState('All');
   const [filterAssignedTo, setFilterAssignedTo] = useState('All');
+  const [scheduleModal, setScheduleModal] = useState(null); // { candidate }
 
 
   const fetchPositions = useCallback(async () => {
@@ -335,6 +337,16 @@ function ApplicantsPage({ API_BASE, token, onError }) {
           >
             Re-evaluate
           </button>
+          <button
+            onClick={() => {
+              const candidate = candidates.find(c => c.id === openMenuId);
+              setScheduleModal({ candidate });
+              setOpenMenuId(null);
+              setMenuAnchor(null);
+            }}
+          >
+            Schedule Interview
+          </button>
         </div>
       )}
 
@@ -599,8 +611,24 @@ function ApplicantsPage({ API_BASE, token, onError }) {
             onClose={() => setSelectedCandidateDetail(null)}
             API_BASE={API_BASE}
             token={token}
+            onScheduleInterview={(c) => setScheduleModal({ candidate: c })}
           />
         </div>
+      )}
+
+      {scheduleModal && (
+        <ScheduleInterviewModal
+          candidate={scheduleModal.candidate}
+          API_BASE={API_BASE}
+          token={token}
+          onClose={() => setScheduleModal(null)}
+          onScheduled={fetchCandidates}
+          onGoToSettings={() => {
+            setScheduleModal(null);
+            // Signal parent to navigate to settings — handled via a custom event
+            window.dispatchEvent(new CustomEvent('navigate', { detail: 'settings' }));
+          }}
+        />
       )}
     </>
   );

@@ -4,9 +4,11 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import ApplicantsPage from './components/ApplicantsPage';
 import PositionsPage from './components/PositionsPage';
+import SettingsPage from './components/SettingsPage';
 import './App.css';
 
-const API_BASE = "https://ai-projects-jj5i.onrender.com"
+const API_BASE = "http://127.0.0.1:8000"
+//"https://ai-projects-jj5i.onrender.com"
 //"http://127.0.0.1:8000"
 
 
@@ -17,6 +19,13 @@ function App() {
   const [adminEmail, setAdminEmail] = useState(localStorage.getItem('adminEmail'));
   const [currentPage, setCurrentPage] = useState('applicants');
   const [error, setError] = useState('');
+
+  // Allow child components to navigate via custom event
+  React.useEffect(() => {
+    const handler = (e) => setCurrentPage(e.detail);
+    window.addEventListener('navigate', handler);
+    return () => window.removeEventListener('navigate', handler);
+  }, []);
 
   const handleLoginSuccess = (newToken, email) => {
     setToken(newToken);
@@ -50,6 +59,9 @@ function App() {
           )}
           {currentPage === 'positions' && (
             <PositionsPage API_BASE={API_BASE} token={token} onError={setError} />
+          )}
+          {currentPage === 'settings' && (
+            <SettingsPage API_BASE={API_BASE} token={token} />
           )}
         </div>
       </div>

@@ -27,7 +27,10 @@ function Sidebar({ currentPage, setCurrentPage }) {
          
           <span>Reports</span>
         </button>
-        <button className="nav-item disabled" disabled>
+        <button
+          className={`nav-item ${currentPage === 'settings' ? 'active' : ''}`}
+          onClick={() => setCurrentPage('settings')}
+        >
           <span>Settings</span>
         </button>
       </nav>

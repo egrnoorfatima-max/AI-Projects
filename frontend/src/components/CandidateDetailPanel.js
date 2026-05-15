@@ -1,13 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
-export default function CandidateDetailPanel({ candidate, onClose, API_BASE, token }) {
+export default function CandidateDetailPanel({ candidate, onClose, API_BASE, token, onScheduleInterview }) {
   const [latestMatchDetails, setLatestMatchDetails] = useState(null);
   const [loadingMatch, setLoadingMatch] = useState(false);
   const [applications, setApplications] = useState([]);
   const [loadingApps, setLoadingApps] = useState(false);
   const [selectedHistoricalMatch, setSelectedHistoricalMatch] = useState(null);
   const [loadingHistorical, setLoadingHistorical] = useState(false);
+  const [interviews, setInterviews] = useState([]);
+  const [loadingInterviews, setLoadingInterviews] = useState(false);
+  const [reschedulingId, setReschedulingId] = useState(null);
+  const [rescheduleForm, setRescheduleForm] = useState({ interview_date: '', interview_time: '' });
+  const [actionLoading, setActionLoading] = useState(false);
 
   const fetchMatchDetails = useCallback(async (matchId, setData, setLoading) => {
     setLoading(true);
@@ -37,12 +42,68 @@ export default function CandidateDetailPanel({ candidate, onClose, API_BASE, tok
     }
   }, [API_BASE, token, candidate.id]);
 
+  const fetchInterviews = useCallback(async () => {
+    setLoadingInterviews(true);
+    try {
+      const res = await axios.get(`${API_BASE}/interviews/candidate/${candidate.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setInterviews(res.data || []);
+    } catch (err) {
+      console.error('Failed to fetch interviews:', err);
+    } finally {
+      setLoadingInterviews(false);
+    }
+  }, [API_BASE, token, candidate.id]);
+
   useEffect(() => {
     if (candidate.latest_match?.id) {
       fetchMatchDetails(candidate.latest_match.id, setLatestMatchDetails, setLoadingMatch);
     }
     fetchApplications();
-  }, [candidate.latest_match?.id, fetchMatchDetails, fetchApplications]);
+    fetchInterviews();
+  }, [candidate.latest_match?.id, fetchMatchDetails, fetchApplications, fetchInterviews]);
+
+  const handleReschedule = async (interviewId) => {
+    if (!rescheduleForm.interview_date || !rescheduleForm.interview_time) return;
+    setActionLoading(true);
+    const payload = {
+      interview_date: rescheduleForm.interview_date,
+      interview_time: rescheduleForm.interview_time,
+    };
+    console.log('Reschedule payload:', payload);
+    try {
+      await axios.patch(
+        `${API_BASE}/interviews/${interviewId}/reschedule`,
+        payload,
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+      );
+      setReschedulingId(null);
+      setRescheduleForm({ interview_date: '', interview_time: '' });
+      fetchInterviews();
+    } catch (err) {
+      console.error('Reschedule failed:', err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCancel = async (interviewId) => {
+    if (!window.confirm('Cancel this interview? The Google Calendar event will also be deleted.')) return;
+    setActionLoading(true);
+    try {
+      await axios.patch(
+        `${API_BASE}/interviews/${interviewId}/cancel`,
+        {},
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+      );
+      fetchInterviews();
+    } catch (err) {
+      console.error('Cancel failed:', err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const handleViewHistoricalDetails = (app) => {
     if (selectedHistoricalMatch?.id === app.match_id) {
@@ -91,6 +152,15 @@ export default function CandidateDetailPanel({ candidate, onClose, API_BASE, tok
               <span>{candidate.total_years_experience} years experience</span>
             </div>
           )}
+          {onScheduleInterview && (
+            <button
+              className="btn btn-primary"
+              style={{ marginTop: '14px', width: '100%' }}
+              onClick={() => onScheduleInterview(candidate)}
+            >
+              Schedule Interview
+            </button>
+          )}
         </div>
 
         {/* Scrollable body */}
@@ -126,6 +196,111 @@ export default function CandidateDetailPanel({ candidate, onClose, API_BASE, tok
               </>
             ) : (
               <p style={{ color: '#9ca3af', fontSize: '14px' }}>No match data yet.</p>
+            )}
+          </div>
+
+          {/* Interviews */}
+          <div className="detail-section">
+            <h3>Interviews</h3>
+
+            {loadingInterviews ? (
+              <p style={{ color: '#9ca3af', fontSize: '14px' }}>Loading interviews…</p>
+            ) : interviews.length === 0 ? (
+              <p style={{ color: '#9ca3af', fontSize: '14px' }}>No interviews scheduled yet.</p>
+            ) : (
+              <div className="interview-list">
+                {interviews.map((iv) => (
+                  <div key={iv.id} className={`interview-card interview-card-${iv.status}`}>
+                    <div className="interview-card-top">
+                      <div className="interview-card-meta">
+                        <span className={`interview-type-badge interview-type-${iv.interview_type}`}>
+                          {iv.interview_type === 'video' ? 'Video' : iv.interview_type === 'phone' ? 'Phone' : 'Onsite'}
+                        </span>
+                        <span className={`interview-status-badge interview-status-${iv.status}`}>
+                          {iv.status.charAt(0).toUpperCase() + iv.status.slice(1)}
+                        </span>
+                      </div>
+                      <div className="interview-card-datetime">
+                        <strong>{formatDate(iv.interview_date)}</strong>
+                        {' at '}
+                        <strong>{formatTime(iv.interview_time)}</strong>
+                        <span style={{ color: '#94a3b8', marginLeft: '6px' }}>({iv.duration_minutes} min)</span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                        Interviewer: {iv.interviewer_email}
+                      </div>
+                    </div>
+
+                    {iv.google_meet_link && iv.status !== 'cancelled' && (
+                      <a
+                        href={iv.google_meet_link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="interview-meet-link-inline"
+                      >
+                        Join Google Meet →
+                      </a>
+                    )}
+
+                    {/* Reschedule inline form */}
+                    {reschedulingId === iv.id ? (
+                      <div className="interview-reschedule-form">
+                        <input
+                          type="date"
+                          className="interview-reschedule-input"
+                          min={new Date().toISOString().split('T')[0]}
+                          value={rescheduleForm.interview_date}
+                          onChange={(e) => setRescheduleForm((f) => ({ ...f, interview_date: e.target.value }))}
+                        />
+                        <input
+                          type="time"
+                          className="interview-reschedule-input"
+                          value={rescheduleForm.interview_time}
+                          onChange={(e) => setRescheduleForm((f) => ({ ...f, interview_time: e.target.value }))}
+                        />
+                        <button
+                          className="btn btn-primary"
+                          style={{ padding: '5px 12px', fontSize: '0.8rem' }}
+                          onClick={() => handleReschedule(iv.id)}
+                          disabled={actionLoading}
+                        >
+                          Confirm
+                        </button>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: '5px 10px', fontSize: '0.8rem' }}
+                          onClick={() => setReschedulingId(null)}
+                          disabled={actionLoading}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : iv.status !== 'cancelled' && (
+                      <div className="interview-card-actions">
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                          onClick={() => {
+                            setReschedulingId(iv.id);
+                            setRescheduleForm({ interview_date: iv.interview_date, interview_time: iv.interview_time });
+                          }}
+                          disabled={actionLoading}
+                        >
+                          Reschedule
+                        </button>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: '4px 10px', fontSize: '0.8rem', color: '#dc2626' }}
+                          onClick={() => handleCancel(iv.id)}
+                          disabled={actionLoading}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
@@ -355,4 +530,19 @@ function getRecommendationClass(rec) {
   if (r.includes('strong yes') || r === 'yes') return 'green';
   if (r.includes('maybe')) return 'yellow';
   return 'red';
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+  });
+}
+
+function formatTime(timeStr) {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
 }

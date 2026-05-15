@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
-from routes import candidates, job_descriptions, auth_routes
+from routes import candidates, job_descriptions, auth_routes, interviews
 
 os.makedirs("uploads", exist_ok=True)
 port = int(os.getenv("PORT", 8000))
@@ -22,6 +22,7 @@ app.add_middleware(
 app.include_router(auth_routes.router)
 app.include_router(candidates.router)
 app.include_router(job_descriptions.router)
+app.include_router(interviews.router)
 
 
 @app.get("/")
