@@ -6,8 +6,8 @@ import ApplicantsPage from './components/ApplicantsPage';
 import PositionsPage from './components/PositionsPage';
 import './App.css';
 
-const API_BASE = "https://ai-projects-jj5i.onrender.com"
-//"http://127.0.0.1:8000"
+const API_BASE = "http://127.0.0.1:8000"
+//"https://ai-projects-jj5i.onrender.com"
 
 
 function App() {

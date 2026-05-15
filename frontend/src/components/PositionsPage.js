@@ -369,8 +369,10 @@ function PositionFormModal({ title, onClose, onSave, form, setForm, loading, isE
               type="date"
               value={form.start_date}
               disabled={isEdit}
+              max={!isEdit ? new Date().toISOString().split('T')[0] : undefined}
               style={isEdit ? { background: '#f3f4f6', cursor: 'not-allowed' } : {}}
               onChange={isEdit ? undefined : (e) => setForm({ ...form, start_date: e.target.value })}
+              required
             />
           </label>
           {!isEdit && (

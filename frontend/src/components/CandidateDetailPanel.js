@@ -64,9 +64,7 @@ export default function CandidateDetailPanel({ candidate, onClose, API_BASE, tok
   };
 
   return (
-    <>
-      <div className="detail-panel-overlay" onClick={onClose} />
-      <div className="detail-panel">
+    <div className="detail-panel">
 
         {/* Candidate header */}
         <div className="detail-panel-header">
@@ -208,8 +206,7 @@ export default function CandidateDetailPanel({ candidate, onClose, API_BASE, tok
           </div>
 
         </div>
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -298,7 +295,7 @@ function MatchDetails({ matchData }) {
       {(matchData.strong_points?.length > 0 || matchData.red_flags?.length > 0) && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '20px' }}>
           <div>
-            <div style={{ fontWeight: '600', fontSize: '13px', color: '#374151', marginBottom: '6px' }}>
+            <div style={{ fontWeight: '700', fontSize: '13px', color: '#335c38', marginBottom: '6px' }}>
               Strong Points
             </div>
             <ul className="points-list">
@@ -306,12 +303,12 @@ function MatchDetails({ matchData }) {
             </ul>
           </div>
           <div>
-            <div style={{ fontWeight: '600', fontSize: '13px', color: '#dc2626', marginBottom: '6px' }}>
+            <div style={{ fontWeight: '700', fontSize: '13px', color: '#dc2626', marginBottom: '6px' }}>
               Red Flags
             </div>
             <ul className="points-list">
               {(matchData.red_flags || []).map((f, i) => (
-                <li key={i} style={{ color: '#dc2626' }}>{f}</li>
+                <li key={i} style={{ color: '#374151' }}>{f}</li>
               ))}
             </ul>
           </div>

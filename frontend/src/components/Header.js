@@ -5,11 +5,11 @@ function Header({ adminEmail, onLogout }) {
 
   return (
     <header className="header">
-      <div className="header-search">
-        <input type="text" placeholder="Search..." readOnly />
+      <div className="header-left">
+        <input type="text" className="header-search" placeholder="Search..." />
       </div>
       <div className="header-right">
-        <button className="header-icon">🔔</button>
+        <button className="notification-icon">🔔</button>
         <div className="profile-section">
           <button
             className="profile-button"

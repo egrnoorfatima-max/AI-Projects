@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import CandidateDetailPanel from './CandidateDetailPanel';
@@ -296,14 +296,8 @@ function ApplicantsPage({ API_BASE, token, onError }) {
   };
 
   return (
-    <div className="content">
-      {toast && (
-        <div className={`toast ${toast.type}`}>
-          {toast.message}
-        </div>
-      )}
-
-      {/* Fixed-position dot menu dropdown rendered outside table to avoid overflow clipping */}
+    <>
+      {/* Fixed-position dot menu dropdown — outside page-content to avoid overflow clipping */}
       {openMenuId && menuAnchor && (
         <div className="dot-menu-dropdown" style={{ top: menuAnchor.top, right: menuAnchor.right }}>
           {candidates.find(c => c.id === openMenuId)?.s3_key && (
@@ -344,7 +338,13 @@ function ApplicantsPage({ API_BASE, token, onError }) {
         </div>
       )}
 
-      <div className={`page${selectedCandidateDetail ? ' with-panel' : ''}`}>
+      <div className={`page-content${selectedCandidateDetail ? ' with-panel' : ''}`}>
+        {toast && (
+          <div className={`toast ${toast.type}`}>
+            {toast.message}
+          </div>
+        )}
+
         <div className="page-header">
           <h1>Applicants ({filteredCandidates.length})</h1>
           <button
@@ -365,8 +365,7 @@ function ApplicantsPage({ API_BASE, token, onError }) {
             )}
           </button>
         </div>
-
-        <div className="page-controls">
+        <div className="search-row">
           <input
             type="text"
             placeholder="Search candidates..."
@@ -376,34 +375,37 @@ function ApplicantsPage({ API_BASE, token, onError }) {
           />
         </div>
 
-        <div className="table-toolbar">
-          <div className="filter-row">
+        <div className="filters-row">
+          <div className="filters-left">
             <div className="filter-group">
               <label>Status:</label>
-              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                <option value="All">All</option>
-                {['New','Reviewed','Shortlisted','Interview Scheduled','On Hold','Rejected by Manager','Rejected by Org','Position Closed'].map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+              <FilterDropdown
+                value={filterStatus}
+                onChange={setFilterStatus}
+                options={['New','Reviewed','Shortlisted','Interview Scheduled','On Hold','Rejected by Manager','Rejected by Org','Position Closed']}
+                placeholder="All"
+                searchable={false}
+              />
             </div>
             <div className="filter-group">
               <label>Position:</label>
-              <select value={filterPosition} onChange={(e) => setFilterPosition(e.target.value)}>
-                <option value="All">All</option>
-                {uniquePositionTitles.map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+              <FilterDropdown
+                value={filterPosition}
+                onChange={setFilterPosition}
+                options={uniquePositionTitles}
+                placeholder="All"
+                searchable={true}
+              />
             </div>
             <div className="filter-group">
               <label>Assigned To:</label>
-              <select value={filterAssignedTo} onChange={(e) => setFilterAssignedTo(e.target.value)}>
-                <option value="All">All</option>
-                {uniqueAssignedTo.map(a => (
-                  <option key={a} value={a}>{a}</option>
-                ))}
-              </select>
+              <FilterDropdown
+                value={filterAssignedTo}
+                onChange={setFilterAssignedTo}
+                options={uniqueAssignedTo}
+                placeholder="All"
+                searchable={true}
+              />
             </div>
           </div>
           <button className="btn btn-excel" onClick={exportToExcel}>
@@ -411,7 +413,7 @@ function ApplicantsPage({ API_BASE, token, onError }) {
           </button>
         </div>
 
-        <div className="table-wrapper">
+        <div className="table-container">
           <table className="data-table">
             <thead>
               <tr>
@@ -546,59 +548,61 @@ function ApplicantsPage({ API_BASE, token, onError }) {
             </div>
           </div>
         </div>
+
+        {showUploadModal && (
+          <UploadResumeModal
+            onClose={() => {
+              setShowUploadModal(false);
+              setUploadFile(null);
+              setSelectedPosition(null);
+            }}
+            onUpload={handleUploadResume}
+            file={uploadFile}
+            setFile={setUploadFile}
+            positions={positions}
+            selectedPosition={selectedPosition}
+            setSelectedPosition={setSelectedPosition}
+          />
+        )}
+
+        {selectedMatchId && (
+          <MatchBreakdownModal
+            matchId={selectedMatchId}
+            onClose={() => setSelectedMatchId(null)}
+            API_BASE={API_BASE}
+            token={token}
+          />
+        )}
+
+        {statusModal && (
+          <StatusChangeModal
+            candidate={statusModal.candidate}
+            onClose={() => setStatusModal(null)}
+            onSave={handleStatusUpdate}
+          />
+        )}
+
+        {reEvaluateModal && (
+          <ReEvaluateModal
+            candidate={reEvaluateModal.candidate}
+            positions={positions}
+            onClose={() => setReEvaluateModal(null)}
+            onEvaluate={handleReEvaluate}
+          />
+        )}
       </div>
 
-      {showUploadModal && (
-        <UploadResumeModal
-          onClose={() => {
-            setShowUploadModal(false);
-            setUploadFile(null);
-            setSelectedPosition(null);
-          }}
-          onUpload={handleUploadResume}
-          file={uploadFile}
-          setFile={setUploadFile}
-          positions={positions}
-          selectedPosition={selectedPosition}
-          setSelectedPosition={setSelectedPosition}
-        />
-      )}
-
       {selectedCandidateDetail && (
-        <CandidateDetailPanel
-          candidate={selectedCandidateDetail}
-          onClose={() => setSelectedCandidateDetail(null)}
-          API_BASE={API_BASE}
-          token={token}
-        />
+        <div className="candidate-side-panel">
+          <CandidateDetailPanel
+            candidate={selectedCandidateDetail}
+            onClose={() => setSelectedCandidateDetail(null)}
+            API_BASE={API_BASE}
+            token={token}
+          />
+        </div>
       )}
-
-      {selectedMatchId && (
-        <MatchBreakdownModal
-          matchId={selectedMatchId}
-          onClose={() => setSelectedMatchId(null)}
-          API_BASE={API_BASE}
-          token={token}
-        />
-      )}
-
-      {statusModal && (
-        <StatusChangeModal
-          candidate={statusModal.candidate}
-          onClose={() => setStatusModal(null)}
-          onSave={handleStatusUpdate}
-        />
-      )}
-
-      {reEvaluateModal && (
-        <ReEvaluateModal
-          candidate={reEvaluateModal.candidate}
-          positions={positions}
-          onClose={() => setReEvaluateModal(null)}
-          onEvaluate={handleReEvaluate}
-        />
-      )}
-    </div>
+    </>
   );
 }
 
@@ -879,22 +883,11 @@ function UploadResumeModal({ onClose, onUpload, file, setFile, positions, select
             <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
               Select Position: *
             </label>
-            <select
-              value={selectedPosition?.id || ''}
-              onChange={(e) => {
-                const position = positions.find(p => p.id === parseInt(e.target.value, 10));
-                setSelectedPosition(position);
-              }}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
-              required
-            >
-              <option value="">Choose a position...</option>
-              {positions.filter(p => p.status === 'open').map((position) => (
-                <option key={position.id} value={position.id}>
-                  {position.title}
-                </option>
-              ))}
-            </select>
+            <PositionDropdown
+              positions={positions.filter(p => p.status === 'open')}
+              value={selectedPosition}
+              onChange={setSelectedPosition}
+            />
           </div>
         </div>
         <div className="modal-footer">
@@ -914,26 +907,21 @@ function UploadResumeModal({ onClose, onUpload, file, setFile, positions, select
 
 
 function ReEvaluateModal({ candidate, positions, onClose, onEvaluate }) {
-  const [selectedJdId, setSelectedJdId] = useState('');
+  const [selectedPosition, setSelectedPosition] = useState(null);
   const [evaluating, setEvaluating] = useState(false);
 
   const openPositions = positions.filter(p => p.status === 'open');
 
   const handleEvaluate = async () => {
-    if (!selectedJdId) return;
+    if (!selectedPosition) return;
     setEvaluating(true);
     try {
-      await onEvaluate(Number(selectedJdId));
+      await onEvaluate(selectedPosition.id);
     } catch {
       // error toast already shown by parent; keep modal open
     } finally {
       setEvaluating(false);
     }
-  };
-
-  const fieldStyle = {
-    width: '100%', padding: '8px 12px', border: '1px solid #cbd5e1',
-    borderRadius: '6px', fontSize: '0.9rem',
   };
 
   return (
@@ -952,12 +940,11 @@ function ReEvaluateModal({ candidate, positions, onClose, onEvaluate }) {
           )}
           <div>
             <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Select New Position:</label>
-            <select value={selectedJdId} onChange={(e) => setSelectedJdId(e.target.value)} style={fieldStyle}>
-              <option value="">Choose a position...</option>
-              {openPositions.map(p => (
-                <option key={p.id} value={p.id}>{p.title}</option>
-              ))}
-            </select>
+            <PositionDropdown
+              positions={openPositions}
+              value={selectedPosition}
+              onChange={setSelectedPosition}
+            />
           </div>
         </div>
         <div className="modal-footer">
@@ -965,12 +952,170 @@ function ReEvaluateModal({ candidate, positions, onClose, onEvaluate }) {
           <button
             className="btn btn-primary"
             onClick={handleEvaluate}
-            disabled={!selectedJdId || evaluating}
+            disabled={!selectedPosition || evaluating}
           >
             {evaluating ? 'Evaluating...' : 'Evaluate'}
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PositionDropdown({ positions, value, onChange, placeholder = 'Choose a position...' }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [menuStyle, setMenuStyle] = useState({});
+  const containerRef = useRef(null);
+  const triggerRef = useRef(null);
+  const searchRef = useRef(null);
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+        setSearchQuery('');
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (triggerRef.current) {
+        const rect = triggerRef.current.getBoundingClientRect();
+        setMenuStyle({ position: 'fixed', top: rect.bottom + 4, left: rect.left, width: rect.width, minWidth: 'unset', zIndex: 9999 });
+      }
+      if (searchRef.current) searchRef.current.focus();
+    }
+  }, [isOpen]);
+
+  const filtered = positions.filter(p =>
+    p.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <div className="filter-dropdown" ref={containerRef} style={{ width: '100%' }}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`filter-dropdown-trigger${isOpen ? ' open' : ''}`}
+        style={{ width: '100%', minWidth: 'unset' }}
+        onClick={() => { setIsOpen(prev => !prev); if (!isOpen) setSearchQuery(''); }}
+      >
+        <span className="filter-dropdown-value" style={{ maxWidth: 'none', flex: 1 }}>
+          {value ? value.title : placeholder}
+        </span>
+        <span className="filter-dropdown-arrow">▾</span>
+      </button>
+
+      {isOpen && (
+        <div className="filter-dropdown-menu" style={menuStyle}>
+          <div className="filter-dropdown-search-wrap">
+            <input
+              ref={searchRef}
+              type="text"
+              className="filter-dropdown-search-input"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search positions..."
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          <div className="filter-dropdown-list">
+            {filtered.length === 0 ? (
+              <div className="filter-dropdown-empty">No results found</div>
+            ) : filtered.map(p => (
+              <div
+                key={p.id}
+                className={`filter-dropdown-option${value?.id === p.id ? ' selected' : ''}`}
+                onClick={() => { onChange(p); setIsOpen(false); setSearchQuery(''); }}
+              >
+                {p.title}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilterDropdown({ value, onChange, options, searchable = false, placeholder = 'All' }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const containerRef = useRef(null);
+  const searchRef = useRef(null);
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+        setSearchQuery('');
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && searchable && searchRef.current) {
+      searchRef.current.focus();
+    }
+  }, [isOpen, searchable]);
+
+  const filtered = searchable
+    ? options.filter(opt => opt.toLowerCase().includes(searchQuery.toLowerCase()))
+    : options;
+
+  return (
+    <div className="filter-dropdown" ref={containerRef}>
+      <button
+        type="button"
+        className={`filter-dropdown-trigger${isOpen ? ' open' : ''}`}
+        onClick={() => { setIsOpen(prev => !prev); if (!isOpen) setSearchQuery(''); }}
+      >
+        <span className="filter-dropdown-value">{value === 'All' ? placeholder : value}</span>
+        <span className="filter-dropdown-arrow">▾</span>
+      </button>
+
+      {isOpen && (
+        <div className="filter-dropdown-menu">
+          {searchable && (
+            <div className="filter-dropdown-search-wrap">
+              <input
+                ref={searchRef}
+                type="text"
+                className="filter-dropdown-search-input"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search..."
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          )}
+          <div className="filter-dropdown-list">
+            <div
+              className={`filter-dropdown-option${value === 'All' ? ' selected' : ''}`}
+              onClick={() => { onChange('All'); setIsOpen(false); setSearchQuery(''); }}
+            >
+              {placeholder}
+            </div>
+            {filtered.length === 0 ? (
+              <div className="filter-dropdown-empty">No results found</div>
+            ) : filtered.map(opt => (
+              <div
+                key={opt}
+                className={`filter-dropdown-option${value === opt ? ' selected' : ''}`}
+                onClick={() => { onChange(opt); setIsOpen(false); setSearchQuery(''); }}
+              >
+                {opt}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
