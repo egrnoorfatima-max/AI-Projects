@@ -10,7 +10,7 @@ from parser import parse_resume, match_jd
 from auth import get_current_user
 from utils.dependencies import get_db
 from utils.s3_storage import upload_resume_to_s3, generate_presigned_url
-from schemas.candidate import MatchJDRequest, CandidateStatusUpdate
+from schemas.candidate import MatchJDRequest, CandidateStatusUpdate, BulkStatusUpdateRequest
 
 router = APIRouter()
 
@@ -329,3 +329,36 @@ async def get_candidate_applications(
         })
 
     return {"candidate_id": candidate_id, "applications": applications}
+
+
+@router.post("/candidates/bulk-status-update")
+async def bulk_status_update(
+    request: BulkStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: str = Depends(get_current_user),
+):
+    updated_count = 0
+    for candidate_id in request.candidate_ids:
+        candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+        if not candidate:
+            continue
+
+        candidate.status = request.status
+        if request.comment is not None:
+            candidate.latest_comment = request.comment
+
+        latest_match = (
+            db.query(MatchResult)
+            .filter(MatchResult.candidate_id == candidate_id)
+            .order_by(MatchResult.id.desc())
+            .first()
+        )
+        if latest_match:
+            latest_match.status = request.status
+            if request.comment is not None:
+                latest_match.comments = request.comment
+
+        updated_count += 1
+
+    db.commit()
+    return {"updated_count": updated_count, "status": request.status}

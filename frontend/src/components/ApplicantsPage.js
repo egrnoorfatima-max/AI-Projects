@@ -25,6 +25,9 @@ function ApplicantsPage({ API_BASE, token, onError }) {
   const [filterPosition, setFilterPosition] = useState('All');
   const [filterAssignedTo, setFilterAssignedTo] = useState('All');
   const [scheduleModal, setScheduleModal] = useState(null); // { candidate }
+  const [refreshInterviewsToken, setRefreshInterviewsToken] = useState(0);
+  const [selectedCandidates, setSelectedCandidates] = useState([]);
+  const [bulkStatusModal, setBulkStatusModal] = useState(false);
 
 
   const fetchPositions = useCallback(async () => {
@@ -62,6 +65,22 @@ function ApplicantsPage({ API_BASE, token, onError }) {
       onError('Failed to load candidates: ' + (err.response?.data?.detail || err.message));
     }
   }, [API_BASE, token, onError]);
+
+  const refreshCandidateDetail = useCallback(async (candidateId) => {
+    try {
+      const response = await axios.get(`${API_BASE}/candidates`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const fresh = response.data || [];
+      setCandidates(fresh);
+      if (candidateId) {
+        const updated = fresh.find(c => c.id === candidateId);
+        if (updated) setSelectedCandidateDetail(updated);
+      }
+    } catch (err) {
+      console.error('Failed to refresh candidate:', err);
+    }
+  }, [API_BASE, token]);
 
   useEffect(() => {
     fetchCandidates();
@@ -249,6 +268,24 @@ function ApplicantsPage({ API_BASE, token, onError }) {
     await fetchCandidates();
   };
 
+  const handleBulkStatusUpdate = async (status, comment) => {
+    setBulkStatusModal(false);
+    try {
+      const response = await axios.post(
+        `${API_BASE}/candidates/bulk-status-update`,
+        { candidate_ids: selectedCandidates, status, comment: comment || null },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const count = response.data.updated_count;
+      setToast({ type: 'success', message: `${count} candidate${count !== 1 ? 's' : ''} status updated to "${status}"` });
+      setSelectedCandidates([]);
+      await fetchCandidates();
+    } catch (err) {
+      setToast({ type: 'error', message: 'Bulk update failed: ' + (err.response?.data?.detail || err.message) });
+      setBulkStatusModal(true);
+    }
+  };
+
   const positionMap = Object.fromEntries(positions.map(p => [p.id, p]));
   const uniquePositionTitles = [...new Set(candidates.map(c => c.latest_match?.position_title).filter(Boolean))];
   const uniqueAssignedTo = [...new Set(positions.map(p => p.assigned_to).filter(Boolean))];
@@ -420,16 +457,37 @@ function ApplicantsPage({ API_BASE, token, onError }) {
               />
             </div>
           </div>
-          <button className="btn btn-excel" onClick={exportToExcel}>
-            ↓ Export to Excel
-          </button>
+          <div className="filters-right">
+            <button
+              className="btn btn-bulk-status"
+              onClick={() => setBulkStatusModal(true)}
+              disabled={selectedCandidates.length === 0}
+            >
+              {selectedCandidates.length > 0 ? `Update Status (${selectedCandidates.length})` : 'Update Status'}
+            </button>
+            <button className="btn btn-excel" onClick={exportToExcel}>
+              ↓ Export to Excel
+            </button>
+          </div>
         </div>
 
         <div className="table-container">
           <table className="data-table">
             <thead>
               <tr>
-                <th style={{ width: '40px' }}><input type="checkbox" /></th>
+                <th style={{ width: '40px' }}>
+                  <input
+                    type="checkbox"
+                    checked={paginatedCandidates.length > 0 && paginatedCandidates.every(c => selectedCandidates.includes(c.id))}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedCandidates(prev => [...new Set([...prev, ...paginatedCandidates.map(c => c.id)])]);
+                      } else {
+                        setSelectedCandidates(prev => prev.filter(id => !paginatedCandidates.some(c => c.id === id)));
+                      }
+                    }}
+                  />
+                </th>
                 <th style={{ width: '40px' }}>Photo</th>
                 <th>Name</th>
                 <th>Current Role</th>
@@ -453,7 +511,19 @@ function ApplicantsPage({ API_BASE, token, onError }) {
               ) : (
                 paginatedCandidates.map((candidate) => (
                   <tr key={candidate.id} className="table-row">
-                    <td><input type="checkbox" onClick={(e) => e.stopPropagation()} /></td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedCandidates.includes(candidate.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          setSelectedCandidates(prev =>
+                            e.target.checked ? [...prev, candidate.id] : prev.filter(id => id !== candidate.id)
+                          );
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </td>
                     <td>
                       <div className="avatar">{candidate.name?.[0]?.toUpperCase()}</div>
                     </td>
@@ -602,6 +672,14 @@ function ApplicantsPage({ API_BASE, token, onError }) {
             onEvaluate={handleReEvaluate}
           />
         )}
+
+        {bulkStatusModal && (
+          <BulkStatusModal
+            count={selectedCandidates.length}
+            onClose={() => setBulkStatusModal(false)}
+            onSave={handleBulkStatusUpdate}
+          />
+        )}
       </div>
 
       {selectedCandidateDetail && (
@@ -612,6 +690,8 @@ function ApplicantsPage({ API_BASE, token, onError }) {
             API_BASE={API_BASE}
             token={token}
             onScheduleInterview={(c) => setScheduleModal({ candidate: c })}
+            onCandidateUpdated={() => refreshCandidateDetail(selectedCandidateDetail.id)}
+            refreshInterviewsToken={refreshInterviewsToken}
           />
         </div>
       )}
@@ -622,7 +702,7 @@ function ApplicantsPage({ API_BASE, token, onError }) {
           API_BASE={API_BASE}
           token={token}
           onClose={() => setScheduleModal(null)}
-          onScheduled={fetchCandidates}
+          onScheduled={() => { fetchCandidates(); setRefreshInterviewsToken(t => t + 1); }}
           onGoToSettings={() => {
             setScheduleModal(null);
             // Signal parent to navigate to settings — handled via a custom event
@@ -1144,6 +1224,60 @@ function FilterDropdown({ value, onChange, options, searchable = false, placehol
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function BulkStatusModal({ count, onClose, onSave }) {
+  const STATUS_OPTIONS = [
+    'New',
+    'Reviewed',
+    'Shortlisted',
+    'Interview Scheduled',
+    'On Hold',
+    'Rejected by Manager',
+    'Rejected by Org',
+    'Position Closed',
+  ];
+  const [status, setStatus] = useState('Reviewed');
+  const [comment, setComment] = useState('');
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Update Status — {count} Candidate{count !== 1 ? 's' : ''}</h2>
+          <button className="close-btn" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>New Status:</label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem' }}
+            >
+              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Comment (optional):</label>
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Add a comment for all selected candidates..."
+              rows={4}
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem', resize: 'vertical' }}
+            />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={() => onSave(status, comment)}>
+            Update {count} Candidate{count !== 1 ? 's' : ''}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

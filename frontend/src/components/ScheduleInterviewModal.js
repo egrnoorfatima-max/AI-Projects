@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const TODAY = new Date().toISOString().split('T')[0];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const DURATIONS = [
   { value: 30, label: '30 minutes' },
@@ -34,6 +35,7 @@ export default function ScheduleInterviewModal({
     interview_type: 'video',
     notes: '',
   });
+  const [emailErrors, setEmailErrors] = useState({ interviewer_email: false, candidate_email: false });
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null); // success state with meet link
   const [error, setError] = useState('');
@@ -51,15 +53,23 @@ export default function ScheduleInterviewModal({
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
+  const handleEmailChange = (key, value) => {
+    set(key, value);
+    setEmailErrors((prev) => ({ ...prev, [key]: value.length > 0 && !EMAIL_RE.test(value) }));
+  };
+
   const handleSubmit = async () => {
-    if (!form.interviewer_email || !form.candidate_email) {
-      setError('Both email fields are required.');
+    const interviewerInvalid = !EMAIL_RE.test(form.interviewer_email);
+    const candidateInvalid = !EMAIL_RE.test(form.candidate_email);
+    if (interviewerInvalid || candidateInvalid) {
+      setEmailErrors({ interviewer_email: interviewerInvalid, candidate_email: candidateInvalid });
       return;
     }
     if (!form.interview_date || !form.interview_time) {
       setError('Date and time are required.');
       return;
     }
+    setEmailErrors({ interviewer_email: false, candidate_email: false });
     setError('');
     setSubmitting(true);
     try {
@@ -170,22 +180,32 @@ export default function ScheduleInterviewModal({
             <div style={{ opacity: googleConnected === false ? 0.45 : 1, pointerEvents: googleConnected === false ? 'none' : 'auto' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
                 <label style={labelStyle}>
-                  Interviewer Email *
+                  <span style={{ display: 'flex', alignItems: 'center' }}>
+                    Interviewer Email *
+                    {emailErrors.interviewer_email && (
+                      <span style={{ color: '#ef4444', fontSize: '12px', marginLeft: '8px', fontWeight: 400 }}>Invalid Email</span>
+                    )}
+                  </span>
                   <input
                     type="email"
-                    style={inputStyle}
+                    style={{ ...inputStyle, border: emailErrors.interviewer_email ? '1px solid #ef4444' : '1px solid #e2e8f0' }}
                     value={form.interviewer_email}
-                    onChange={(e) => set('interviewer_email', e.target.value)}
+                    onChange={(e) => handleEmailChange('interviewer_email', e.target.value)}
                     placeholder="recruiter@company.com"
                   />
                 </label>
                 <label style={labelStyle}>
-                  Candidate Email *
+                  <span style={{ display: 'flex', alignItems: 'center' }}>
+                    Candidate Email *
+                    {emailErrors.candidate_email && (
+                      <span style={{ color: '#ef4444', fontSize: '12px', marginLeft: '8px', fontWeight: 400 }}>Invalid Email</span>
+                    )}
+                  </span>
                   <input
                     type="email"
-                    style={inputStyle}
+                    style={{ ...inputStyle, border: emailErrors.candidate_email ? '1px solid #ef4444' : '1px solid #e2e8f0' }}
                     value={form.candidate_email}
-                    onChange={(e) => set('candidate_email', e.target.value)}
+                    onChange={(e) => handleEmailChange('candidate_email', e.target.value)}
                     placeholder="candidate@email.com"
                   />
                 </label>

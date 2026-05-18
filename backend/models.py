@@ -3,6 +3,7 @@ from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
+import uuid
 
 load_dotenv()  # Add this line
 
@@ -103,7 +104,7 @@ class GoogleToken(Base):
 class Interview(Base):
     __tablename__ = "interviews"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     candidate_id = Column(Integer, ForeignKey('candidates.id'), nullable=False)
     position_id = Column(Integer, ForeignKey('job_descriptions.id'), nullable=True)
     scheduled_by = Column(String(200))

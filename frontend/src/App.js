@@ -11,14 +11,33 @@ const API_BASE = "http://127.0.0.1:8000"
 //"https://ai-projects-jj5i.onrender.com"
 //"http://127.0.0.1:8000"
 
+function isTokenExpired(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch {
+    return true; // unparseable token → treat as expired
+  }
+}
 
+function getValidToken() {
+  const stored = localStorage.getItem('token');
+  if (!stored) return null;
+  if (isTokenExpired(stored)) {
+    localStorage.clear();
+    return null;
+  }
+  return stored;
+}
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem('token'));
-  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));
+  // Lazy initializer: validates + clears expired token before first render
+  const [token, setToken] = useState(getValidToken);
   const [adminEmail, setAdminEmail] = useState(localStorage.getItem('adminEmail'));
   const [currentPage, setCurrentPage] = useState('applicants');
   const [error, setError] = useState('');
+
+  const isLoggedIn = !!token;
 
   // Allow child components to navigate via custom event
   React.useEffect(() => {
@@ -30,7 +49,6 @@ function App() {
   const handleLoginSuccess = (newToken, email) => {
     setToken(newToken);
     setAdminEmail(email);
-    setIsLoggedIn(true);
     localStorage.setItem('token', newToken);
     localStorage.setItem('adminEmail', email);
   };
@@ -38,7 +56,6 @@ function App() {
   const handleLogout = () => {
     setToken(null);
     setAdminEmail(null);
-    setIsLoggedIn(false);
     localStorage.clear();
     setCurrentPage('applicants');
   };

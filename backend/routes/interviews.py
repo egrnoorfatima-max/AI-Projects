@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
+from httpx import request
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import os
@@ -266,11 +267,12 @@ def schedule_interview(
 
 @router.patch("/interviews/{interview_id}/reschedule")
 def reschedule_interview(
-    interview_id: int,
+    interview_id: str,
     request: RescheduleRequest,
     db: Session = Depends(get_db),
     current_user: str = Depends(get_current_user),
 ):
+    print("Reschedule received:", {"interview_id": interview_id, "interview_date": request.interview_date, "interview_time": request.interview_time})
     interview = db.query(Interview).filter(Interview.id == interview_id).first()
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
@@ -278,7 +280,9 @@ def reschedule_interview(
     creds = _get_credentials(db, current_user)
     service = build("calendar", "v3", credentials=creds)
 
-    start_dt = datetime.fromisoformat(f"{request.interview_date}T{request.interview_time}:00")
+    #start_dt = datetime.fromisoformat(f"{request.interview_date}T{request.interview_time}:00")
+    time_str = str(request.interview_time)
+    start_dt = datetime.fromisoformat(f"{request.interview_date}T{time_str}")
     end_dt = start_dt + timedelta(minutes=interview.duration_minutes)
 
     try:
@@ -311,7 +315,7 @@ def reschedule_interview(
 
 @router.patch("/interviews/{interview_id}/cancel")
 def cancel_interview(
-    interview_id: int,
+    interview_id: str,
     db: Session = Depends(get_db),
     current_user: str = Depends(get_current_user),
 ):
@@ -333,11 +337,51 @@ def cancel_interview(
         if "404" not in str(e) and "410" not in str(e):
             raise HTTPException(status_code=502, detail=f"Google Calendar error: {str(e)}")
 
+    # Capture before first commit — avoids accessing expired attributes after flush
+    candidate_id = interview.candidate_id
+    interview_id_out = interview.id
+
     interview.status = "cancelled"
     interview.updated_at = datetime.utcnow()
     db.commit()
 
-    return {"id": interview.id, "status": "cancelled"}
+    # If no active interviews remain, revert both MatchResult and Candidate to "Reviewed"
+    remaining_active = (
+        db.query(Interview)
+        .filter(
+            Interview.candidate_id == candidate_id,
+            Interview.status.in_(["scheduled", "rescheduled"]),
+        )
+        .count()
+    )
+
+    if remaining_active == 0:
+        note = "Interview cancelled. Status reverted to Reviewed automatically."
+
+        # 1. Latest match result — this is what the candidate card and panel display
+        latest_match = (
+            db.query(MatchResult)
+            .filter(MatchResult.candidate_id == candidate_id)
+            .order_by(MatchResult.id.desc())
+            .first()
+        )
+        if latest_match:
+            latest_match.status = "Reviewed"
+            latest_match.comments = (
+                (latest_match.comments + " | " + note) if latest_match.comments else note
+            )
+
+        # 2. Candidate row
+        candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+        if candidate:
+            candidate.status = "Reviewed"
+            candidate.latest_comment = (
+                (candidate.latest_comment + " | " + note) if candidate.latest_comment else note
+            )
+
+        db.commit()
+
+    return {"id": interview_id_out, "status": "cancelled"}
 
 
 @router.get("/interviews/candidate/{candidate_id}")
