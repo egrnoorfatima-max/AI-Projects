@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Login from './components/Login';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
+import DashboardPage from './components/DashboardPage';
 import ApplicantsPage from './components/ApplicantsPage';
 import PositionsPage from './components/PositionsPage';
 import SettingsPage from './components/SettingsPage';
@@ -34,7 +35,7 @@ function App() {
   // Lazy initializer: validates + clears expired token before first render
   const [token, setToken] = useState(getValidToken);
   const [adminEmail, setAdminEmail] = useState(localStorage.getItem('adminEmail'));
-  const [currentPage, setCurrentPage] = useState('applicants');
+  const [currentPage, setCurrentPage] = useState('dashboard');
   const [error, setError] = useState('');
 
   const isLoggedIn = !!token;
@@ -71,6 +72,9 @@ function App() {
         <Header adminEmail={adminEmail} onLogout={handleLogout} />
         <div className="content">
           {error && <div className="error-banner">{error}</div>}
+          {currentPage === 'dashboard' && (
+            <DashboardPage API_BASE={API_BASE} token={token} />
+          )}
           {currentPage === 'applicants' && (
             <ApplicantsPage API_BASE={API_BASE} token={token} onError={setError} />
           )}

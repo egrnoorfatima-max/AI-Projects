@@ -7,7 +7,10 @@ function Sidebar({ currentPage, setCurrentPage }) {
         <img src="/hireiq-logo-dark.svg" alt="HireIQ" height="36" style={{ width: 'auto' }} />        
       </div>
       <nav className="sidebar-nav">
-        <button className="nav-item disabled" disabled>
+        <button
+          className={`nav-item ${currentPage === 'dashboard' ? 'active' : ''}`}
+          onClick={() => setCurrentPage('dashboard')}
+        >
           <span>Dashboard</span>
         </button>
         <button

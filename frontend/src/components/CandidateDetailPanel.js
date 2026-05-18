@@ -648,10 +648,15 @@ function getScoreColor(score) {
 }
 
 function getStatusClass(status) {
-  if (!status || status === 'New') return 'new';
-  if (['Shortlisted', 'Interview Scheduled'].includes(status)) return 'green';
-  if (['Rejected by Manager', 'Rejected by Org'].includes(status)) return 'red';
-  return 'gray';
+  switch (status) {
+    case 'Reviewed': return 'reviewed';
+    case 'Interview Scheduled': return 'interview';
+    case 'On Hold': return 'on-hold';
+    case 'Rejected': return 'rejected';
+    case 'Hired': return 'hired';
+    case 'Archived': return 'archived';
+    default: return 'new';
+  }
 }
 
 function formatDate(dateStr) {

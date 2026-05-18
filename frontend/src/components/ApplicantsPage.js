@@ -28,6 +28,7 @@ function ApplicantsPage({ API_BASE, token, onError }) {
   const [refreshInterviewsToken, setRefreshInterviewsToken] = useState(0);
   const [selectedCandidates, setSelectedCandidates] = useState([]);
   const [bulkStatusModal, setBulkStatusModal] = useState(false);
+  const [pendingOpenCandidateId, setPendingOpenCandidateId] = useState(null);
 
 
   const fetchPositions = useCallback(async () => {
@@ -49,10 +50,15 @@ function ApplicantsPage({ API_BASE, token, onError }) {
   }
 
   function getStatusClass(status) {
-    if (!status || status === 'New') return 'new';
-    if (status === 'Shortlisted' || status === 'Interview Scheduled') return 'green';
-    if (status === 'Rejected by Manager' || status === 'Rejected by Org') return 'red';
-    return 'gray';
+    switch (status) {
+      case 'Reviewed': return 'reviewed';
+      case 'Interview Scheduled': return 'interview';
+      case 'On Hold': return 'on-hold';
+      case 'Rejected': return 'rejected';
+      case 'Hired': return 'hired';
+      case 'Archived': return 'archived';
+      default: return 'new';
+    }
   }
 
   const fetchCandidates = useCallback(async () => {
@@ -86,6 +92,40 @@ function ApplicantsPage({ API_BASE, token, onError }) {
     fetchCandidates();
     fetchPositions();
   }, [fetchCandidates, fetchPositions]);
+
+  // Handle cross-page "open candidate panel" event from Dashboard
+  useEffect(() => {
+    const handler = (e) => {
+      const id = e.detail;
+      setCandidates(prev => {
+        const found = prev.find(c => c.id === id);
+        if (found) setSelectedCandidateDetail(found);
+        return prev;
+      });
+    };
+    window.addEventListener('open-candidate', handler);
+    return () => window.removeEventListener('open-candidate', handler);
+  }, []);
+
+  // On mount: read URL params set by Dashboard "View Profile"
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const searchParam = params.get('search');
+    const openId = params.get('openCandidate');
+    if (searchParam) setSearchTerm(searchParam);
+    if (openId) setPendingOpenCandidateId(Number(openId));
+  }, []);
+
+  // Once candidates load, open the pending panel and clear URL params
+  useEffect(() => {
+    if (!pendingOpenCandidateId || candidates.length === 0) return;
+    const candidate = candidates.find(c => c.id === pendingOpenCandidateId);
+    if (candidate) {
+      setSelectedCandidateDetail(candidate);
+      setPendingOpenCandidateId(null);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [candidates, pendingOpenCandidateId]);
 
   useEffect(() => {
     if (!toast) return;
@@ -431,7 +471,7 @@ function ApplicantsPage({ API_BASE, token, onError }) {
               <FilterDropdown
                 value={filterStatus}
                 onChange={setFilterStatus}
-                options={['New','Reviewed','Shortlisted','Interview Scheduled','On Hold','Rejected by Manager','Rejected by Org','Position Closed']}
+                options={['New','Reviewed','Interview Scheduled','On Hold','Rejected','Hired','Archived']}
                 placeholder="All"
                 searchable={false}
               />
@@ -767,12 +807,11 @@ function StatusChangeModal({ candidate, onClose, onSave }) {
   const STATUS_OPTIONS = [
     'New',
     'Reviewed',
-    'Shortlisted',
     'Interview Scheduled',
     'On Hold',
-    'Rejected by Manager',
-    'Rejected by Org',
-    'Position Closed',
+    'Rejected',
+    'Hired',
+    'Archived',
   ];
   const [status, setStatus] = useState(candidate.latest_match?.status || 'New');
   const [comment, setComment] = useState(candidate.latest_match?.comments || '');
@@ -1232,12 +1271,11 @@ function BulkStatusModal({ count, onClose, onSave }) {
   const STATUS_OPTIONS = [
     'New',
     'Reviewed',
-    'Shortlisted',
     'Interview Scheduled',
     'On Hold',
-    'Rejected by Manager',
-    'Rejected by Org',
-    'Position Closed',
+    'Rejected',
+    'Hired',
+    'Archived',
   ];
   const [status, setStatus] = useState('Reviewed');
   const [comment, setComment] = useState('');
