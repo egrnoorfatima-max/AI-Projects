@@ -28,6 +28,8 @@ function ApplicantsPage({ API_BASE, token, onError }) {
   const [refreshInterviewsToken, setRefreshInterviewsToken] = useState(0);
   const [selectedCandidates, setSelectedCandidates] = useState([]);
   const [bulkStatusModal, setBulkStatusModal] = useState(false);
+  const [compareModal, setCompareModal] = useState(false);
+  const [emailModal, setEmailModal] = useState(null);
   const [pendingOpenCandidateId, setPendingOpenCandidateId] = useState(null);
 
 
@@ -227,6 +229,7 @@ function ApplicantsPage({ API_BASE, token, onError }) {
 
   const handleStatusUpdate = async (status, comment) => {
     const matchId = statusModal.candidate.latest_match?.id;
+    const candidateForEmail = statusModal.candidate;
 
     if (!matchId) {
       setToast({ type: 'error', message: 'No match found for this candidate' });
@@ -243,6 +246,9 @@ function ApplicantsPage({ API_BASE, token, onError }) {
       );
       setToast({ type: 'success', message: 'Status updated successfully' });
       await fetchCandidates();
+      if (status === 'Rejected' || status === 'Archived') {
+        setEmailModal({ type: 'single', candidate: candidateForEmail, status });
+      }
     } catch (err) {
       setToast({ type: 'error', message: 'Failed to update status: ' + (err.response?.data?.detail || err.message) });
     }
@@ -309,17 +315,22 @@ function ApplicantsPage({ API_BASE, token, onError }) {
   };
 
   const handleBulkStatusUpdate = async (status, comment) => {
+    const bulkIds = [...selectedCandidates];
+    const affectedCandidates = candidates.filter(c => bulkIds.includes(c.id));
     setBulkStatusModal(false);
     try {
       const response = await axios.post(
         `${API_BASE}/candidates/bulk-status-update`,
-        { candidate_ids: selectedCandidates, status, comment: comment || null },
+        { candidate_ids: bulkIds, status, comment: comment || null },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const count = response.data.updated_count;
       setToast({ type: 'success', message: `${count} candidate${count !== 1 ? 's' : ''} status updated to "${status}"` });
       setSelectedCandidates([]);
       await fetchCandidates();
+      if ((status === 'Rejected' || status === 'Archived') && affectedCandidates.length > 0) {
+        setEmailModal({ type: 'bulk', candidates: affectedCandidates, status });
+      }
     } catch (err) {
       setToast({ type: 'error', message: 'Bulk update failed: ' + (err.response?.data?.detail || err.message) });
       setBulkStatusModal(true);
@@ -498,6 +509,17 @@ function ApplicantsPage({ API_BASE, token, onError }) {
             </div>
           </div>
           <div className="filters-right">
+            <span title={selectedCandidates.length > 4 ? 'Select 4 candidates at most to compare' : undefined}>
+              <button
+                className="btn btn-compare"
+                onClick={() => setCompareModal(true)}
+                disabled={selectedCandidates.length < 2 || selectedCandidates.length > 4}
+              >
+                {selectedCandidates.length >= 2 && selectedCandidates.length <= 4
+                  ? `Compare (${selectedCandidates.length})`
+                  : 'Compare'}
+              </button>
+            </span>
             <button
               className="btn btn-bulk-status"
               onClick={() => setBulkStatusModal(true)}
@@ -718,6 +740,36 @@ function ApplicantsPage({ API_BASE, token, onError }) {
             count={selectedCandidates.length}
             onClose={() => setBulkStatusModal(false)}
             onSave={handleBulkStatusUpdate}
+          />
+        )}
+
+        {compareModal && (
+          <CompareModal
+            candidates={candidates.filter(c => selectedCandidates.includes(c.id))}
+            onClose={() => setCompareModal(false)}
+            onViewProfile={(c) => setSelectedCandidateDetail(c)}
+            API_BASE={API_BASE}
+            token={token}
+          />
+        )}
+
+        {emailModal && (
+          <EmailConfirmModal
+            type={emailModal.type}
+            candidate={emailModal.candidate}
+            candidates={emailModal.candidates}
+            status={emailModal.status}
+            onClose={() => setEmailModal(null)}
+            onSend={(success, msg) => {
+              setEmailModal(null);
+              if (success) {
+                setToast({ type: 'success', message: 'Email sent successfully' });
+              } else if (msg) {
+                setToast({ type: 'warning', message: msg });
+              }
+            }}
+            API_BASE={API_BASE}
+            token={token}
           />
         )}
       </div>
@@ -1016,14 +1068,9 @@ function UploadResumeModal({ onClose, onUpload, file, setFile, positions, select
               onChange={(e) => setFile(e.target.files)}
             />
             {file && file.length > 0 && (
-              <div style={{ marginTop: '10px' }}>
-                <strong>Selected files ({file.length}):</strong>
-                <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
-                  {Array.from(file).map((f, idx) => (
-                    <li key={idx} style={{ fontSize: '0.875rem', color: '#475569' }}>{f.name}</li>
-                  ))}
-                </ul>
-              </div>
+              <p style={{ marginTop: '8px', fontSize: '0.875rem', color: '#475569' }}>
+                {file.length} {file.length === 1 ? 'file' : 'files'} selected
+              </p>
             )}
           </div>
           <div style={{ marginBottom: '15px' }}>
@@ -1315,6 +1362,340 @@ function BulkStatusModal({ count, onClose, onSave }) {
             Update {count} Candidate{count !== 1 ? 's' : ''}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function EmailConfirmModal({ type, candidate, candidates, status, onClose, onSend, API_BASE, token }) {
+  const isBulk = type === 'bulk';
+  const targets = isBulk ? (candidates || []) : (candidate ? [candidate] : []);
+  const recipientCount = targets.length;
+
+  const positionTitle = !isBulk
+    ? (candidate?.latest_match?.position_title || 'the position')
+    : 'the position';
+  const candidateName = !isBulk ? (candidate?.name || 'Candidate') : 'Candidate';
+
+  const defaultSubject = `Application Update — ${positionTitle}`;
+  const defaultBody = status === 'Rejected'
+    ? `Dear ${candidateName},\n\nThank you for your interest in the ${positionTitle} position and for taking the time to go through our hiring process.\n\nAfter careful consideration, we have decided to move forward with other candidates whose experience more closely matches our current requirements.\n\nWe appreciate your interest in joining our team and wish you the best in your job search.\n\nBest regards,\nHiring Team`
+    : `Dear ${candidateName},\n\nThank you for applying for the ${positionTitle} position.\n\nWe wanted to let you know that your application has been archived at this time. This may be due to the position being filled or placed on hold.\n\nWe will keep your profile on file and may reach out if a suitable opportunity arises in the future.\n\nBest regards,\nHiring Team`;
+
+  const [subject, setSubject] = useState(defaultSubject);
+  const [body, setBody] = useState(defaultBody);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState('');
+
+  const subtitleLabel = isBulk
+    ? `${recipientCount} candidate${recipientCount !== 1 ? 's' : ''}`
+    : candidate?.name;
+
+  const handleSend = async () => {
+    setSending(true);
+    setSendError('');
+    const bodyHtml = body.replace(/\n/g, '<br>');
+    let failed = 0;
+    for (const t of targets) {
+      try {
+        await axios.post(
+          `${API_BASE}/candidates/${t.id}/send-email`,
+          { subject, body: bodyHtml, to_email: t.email },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      } catch {
+        failed++;
+      }
+    }
+    setSending(false);
+    if (failed === 0) {
+      onSend(true);
+    } else if (failed < targets.length) {
+      onSend(false, `${targets.length - failed} of ${targets.length} emails sent.`);
+    } else {
+      setSendError('Failed to send emails. Gmail permission not found. Please reconnect Google in Settings.');
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <h2>Send Email Notification?</h2>
+            <p style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '4px' }}>
+              Notify {subtitleLabel} about their application status
+            </p>
+          </div>
+          <button className="close-btn" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          {isBulk && (
+            <div style={{ marginBottom: '16px', padding: '10px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', fontSize: '13px', color: '#1d4ed8' }}>
+              This email will be sent to all {recipientCount} {status.toLowerCase()} candidate{recipientCount !== 1 ? 's' : ''}.
+            </div>
+          )}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.875rem' }}>Subject</label>
+            <input
+              type="text"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.9rem', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.875rem' }}>Email Body</label>
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={8}
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.875rem', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box' }}
+            />
+          </div>
+          {sendError && (
+            <div style={{ marginTop: '12px', padding: '10px 14px', background: '#fee2e2', color: '#991b1b', borderRadius: '6px', fontSize: '0.875rem' }}>
+              {sendError}
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose} disabled={sending}>Skip</button>
+          <button className="btn btn-primary" onClick={handleSend} disabled={sending || !subject.trim()}>
+            {sending
+              ? <><span className="spinner"></span> Sending…</>
+              : `Send Email${recipientCount > 1 ? ` (${recipientCount})` : ''}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompareModal({ candidates, onClose, onViewProfile, API_BASE, token }) {
+  const [matchDataMap, setMatchDataMap] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      const results = {};
+      await Promise.all(
+        candidates.map(async (c) => {
+          const matchId = c.latest_match?.id;
+          if (!matchId) return;
+          try {
+            const res = await axios.get(`${API_BASE}/match-results/${matchId}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            results[c.id] = res.data;
+          } catch {
+            results[c.id] = null;
+          }
+        })
+      );
+      setMatchDataMap(results);
+      setLoading(false);
+    };
+    fetchAll();
+  }, [candidates, API_BASE, token]);
+
+  const positionIds = [...new Set(candidates.map(c => c.latest_match?.position_id).filter(Boolean))];
+  const mixedPositions = positionIds.length > 1;
+
+  function scoreColor(score) {
+    if (score == null) return '#94a3b8';
+    if (score >= 70) return '#16a34a';
+    if (score >= 40) return '#f59e0b';
+    return '#ef4444';
+  }
+
+  function scoreBarColor(score) {
+    if (score == null) return '#e5e7eb';
+    if (score >= 70) return '#16a34a';
+    if (score >= 40) return '#f59e0b';
+    return '#ef4444';
+  }
+
+  const scoreBreakdownKeys = ['skills_match', 'experience_match', 'education_match', 'cultural_fit'];
+
+  return (
+    <div className="cmp-overlay" onClick={onClose}>
+      <div className="cmp-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="cmp-header">
+          <span className="cmp-title">Candidate Comparison</span>
+          <button className="cmp-close" onClick={onClose}>×</button>
+        </div>
+
+        {mixedPositions && (
+          <div className="cmp-warning">
+            ⚠ These candidates are matched to different positions. Scores may not be directly comparable.
+          </div>
+        )}
+
+        {loading ? (
+          <div className="cmp-loading">
+            <span className="spinner" style={{ borderTopColor: '#2563eb', borderColor: 'rgba(37,99,235,0.2)' }}></span>
+            Loading comparison data...
+          </div>
+        ) : (
+          <div className="cmp-body">
+            <table className="cmp-table">
+              <thead>
+                <tr className="cmp-cand-row">
+                  <th className="cmp-th-label"></th>
+                  {candidates.map(c => (
+                    <th key={c.id} className="cmp-th-cand">
+                      <div className="cmp-cand-name">{c.name}</div>
+                      <div className="cmp-cand-pos">{c.latest_match?.position_title || '—'}</div>
+                      <button
+                        className="cmp-view-btn"
+                        onClick={() => { onClose(); onViewProfile(c); }}
+                      >
+                        View Profile
+                      </button>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="cmp-sec-row">
+                  <td colSpan={candidates.length + 1}>Overall</td>
+                </tr>
+                <tr className="cmp-odd">
+                  <td className="cmp-td-label">Match Score</td>
+                  {candidates.map(c => {
+                    const score = c.latest_match?.overall_score;
+                    return (
+                      <td key={c.id} className="cmp-td-data">
+                        <span style={{ fontSize: 28, fontWeight: 700, color: scoreColor(score) }}>
+                          {score != null ? `${score}%` : '—'}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+                <tr className="cmp-even">
+                  <td className="cmp-td-label">Status</td>
+                  {candidates.map(c => (
+                    <td key={c.id} className="cmp-td-data">{c.latest_match?.status || 'New'}</td>
+                  ))}
+                </tr>
+                <tr className="cmp-odd">
+                  <td className="cmp-td-label">Experience</td>
+                  {candidates.map(c => (
+                    <td key={c.id} className="cmp-td-data">
+                      {c.total_years_experience != null ? `${c.total_years_experience} yrs` : '—'}
+                    </td>
+                  ))}
+                </tr>
+
+                <tr className="cmp-sec-row">
+                  <td colSpan={candidates.length + 1}>Score Breakdown</td>
+                </tr>
+                {scoreBreakdownKeys.map((key, idx) => (
+                  <tr key={key} className={idx % 2 === 0 ? 'cmp-even' : 'cmp-odd'}>
+                    <td className="cmp-td-label">{capitalize(key)}</td>
+                    {candidates.map(c => {
+                      const val = matchDataMap[c.id]?.score_breakdown?.[key];
+                      return (
+                        <td key={c.id} className="cmp-td-data">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ flex: 1, height: 6, background: '#e5e7eb', borderRadius: 999, overflow: 'hidden' }}>
+                              <div style={{ width: `${Math.min(val ?? 0, 100)}%`, height: '100%', background: scoreBarColor(val), borderRadius: 999 }} />
+                            </div>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>
+                              {val != null ? `${val}%` : '—'}
+                            </span>
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+
+                <tr className="cmp-sec-row">
+                  <td colSpan={candidates.length + 1}>Skills</td>
+                </tr>
+                <tr className="cmp-odd">
+                  <td className="cmp-td-label">Matching</td>
+                  {candidates.map(c => {
+                    const skills = matchDataMap[c.id]?.matching_skills || [];
+                    return (
+                      <td key={c.id} className="cmp-td-data">
+                        {skills.length > 0 ? skills.join(', ') : <span style={{ color: '#94a3b8' }}>None</span>}
+                      </td>
+                    );
+                  })}
+                </tr>
+                <tr className="cmp-even">
+                  <td className="cmp-td-label">Missing</td>
+                  {candidates.map(c => {
+                    const skills = matchDataMap[c.id]?.missing_skills || [];
+                    return (
+                      <td key={c.id} className="cmp-td-data">
+                        {skills.length > 0 ? skills.join(', ') : <span style={{ color: '#94a3b8' }}>None</span>}
+                      </td>
+                    );
+                  })}
+                </tr>
+
+                <tr className="cmp-sec-row">
+                  <td colSpan={candidates.length + 1}>Evaluation</td>
+                </tr>
+                <tr className="cmp-odd">
+                  <td className="cmp-td-label">Strong Points</td>
+                  {candidates.map(c => {
+                    const points = matchDataMap[c.id]?.strong_points || [];
+                    return (
+                      <td key={c.id} className="cmp-td-data">
+                        {points.length > 0 ? (
+                          <ul className="cmp-bullet-list">
+                            {points.map((p, i) => <li key={i}>{p}</li>)}
+                          </ul>
+                        ) : <span style={{ color: '#94a3b8' }}>—</span>}
+                      </td>
+                    );
+                  })}
+                </tr>
+                <tr className="cmp-even">
+                  <td className="cmp-td-label">Red Flags</td>
+                  {candidates.map(c => {
+                    const flags = matchDataMap[c.id]?.red_flags || [];
+                    return (
+                      <td key={c.id} className="cmp-td-data">
+                        {flags.length > 0 ? (
+                          <ul className="cmp-bullet-list">
+                            {flags.map((f, i) => <li key={i}>{f}</li>)}
+                          </ul>
+                        ) : <span style={{ color: '#94a3b8' }}>—</span>}
+                      </td>
+                    );
+                  })}
+                </tr>
+
+                <tr className="cmp-sec-row">
+                  <td colSpan={candidates.length + 1}>Recommendation</td>
+                </tr>
+                <tr className="cmp-odd">
+                  <td className="cmp-td-label">Decision</td>
+                  {candidates.map(c => (
+                    <td key={c.id} className="cmp-td-data">
+                      {matchDataMap[c.id]?.hire_recommendation || <span style={{ color: '#94a3b8' }}>—</span>}
+                    </td>
+                  ))}
+                </tr>
+                <tr className="cmp-even">
+                  <td className="cmp-td-label">Reason</td>
+                  {candidates.map(c => (
+                    <td key={c.id} className="cmp-td-data" style={{ fontSize: 13, color: '#475569', lineHeight: 1.5 }}>
+                      {matchDataMap[c.id]?.recommendation_reason || <span style={{ color: '#94a3b8' }}>—</span>}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

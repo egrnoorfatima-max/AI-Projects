@@ -5,12 +5,16 @@ import os
 import shutil
 import traceback
 
-from models import Candidate, JobDescription, MatchResult
+from models import Candidate, JobDescription, MatchResult, GoogleToken
 from parser import parse_resume, match_jd
 from auth import get_current_user
 from utils.dependencies import get_db
 from utils.s3_storage import upload_resume_to_s3, generate_presigned_url
-from schemas.candidate import MatchJDRequest, CandidateStatusUpdate, BulkStatusUpdateRequest
+from utils.gmail import send_email
+from schemas.candidate import MatchJDRequest, CandidateStatusUpdate, BulkStatusUpdateRequest, SendEmailRequest
+
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 
 router = APIRouter()
 
@@ -329,6 +333,51 @@ async def get_candidate_applications(
         })
 
     return {"candidate_id": candidate_id, "applications": applications}
+
+
+@router.post("/candidates/{candidate_id}/send-email")
+async def send_candidate_email(
+    candidate_id: int,
+    request: SendEmailRequest,
+    db: Session = Depends(get_db),
+    current_user: str = Depends(get_current_user),
+):
+    record = db.query(GoogleToken).filter(GoogleToken.user_email == current_user).first()
+    if not record or not record.access_token:
+        raise HTTPException(
+            status_code=400,
+            detail="Gmail permission not found. Please reconnect Google in Settings.",
+        )
+
+    creds = Credentials(
+        token=record.access_token,
+        refresh_token=record.refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=os.getenv("GOOGLE_CLIENT_ID"),
+        client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+    )
+
+    if creds.expired and creds.refresh_token:
+        try:
+            creds.refresh(Request())
+            record.access_token = creds.token
+            record.token_expiry = creds.expiry
+            record.updated_at = datetime.utcnow()
+            db.commit()
+        except Exception:
+            raise HTTPException(
+                status_code=401,
+                detail="Google session expired. Please reconnect in Settings.",
+            )
+
+    success = send_email(creds, request.to_email, request.subject, request.body)
+    if not success:
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to send email. Gmail permission not found. Please reconnect Google in Settings.",
+        )
+
+    return {"sent": True}
 
 
 @router.post("/candidates/bulk-status-update")

@@ -11,8 +11,13 @@ class ScheduleInterviewRequest(BaseModel):
     duration_minutes: int = 60
     interview_type: str   # phone | video | onsite
     notes: Optional[str] = None
+    custom_message: Optional[str] = None
+    email_subject: Optional[str] = None
+    email_body: Optional[str] = None
 
 
 class RescheduleRequest(BaseModel):
     interview_date: str   # YYYY-MM-DD
     interview_time: str   # HH:MM
+    email_subject: Optional[str] = None
+    email_body: Optional[str] = None

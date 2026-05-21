@@ -1,18 +1,174 @@
-Problem Statement:
-A recruiter gets 100s of resume on a job post, he/she wants to do a screening to get the most qualified and suited individuals as quickly as possible. Moreover, a recruiter is working on multiple positions at a time.
-User:
-A user gets a folder with 100 resumes for one role and is working on several hirings. He/ She wants to shortlist candidates under 30 minutes, so they could save time by not reading resumes that are not even related.
-Goals & Success Metrics:
-A user uploads a resume and get important data extracted in a spreadsheet with more than 90% accuracy, the sheet is ready to be used as it has data and the comments about the candidates about their status.
-In scope/ Out of Scope:
-•	Upload pdf file 
-•	Extract correct Information in Spreadsheet
-•	It returns the reason why some candidate is shortlisted or rejected.
-•	Different criteria like location, expected salary, relevant technical skills have weightage in overall calculation of score in order to shortlist/reject a candidate.
-•	Sheet is download able.
-Key risks:
-•	The information is not extracted properly.
-•	It overlooks some important information that can reject actually capable candidates.
-What’s done look like:
-I upload resumes in bulk and it provide me a ready to use excel sheet that has data for all the candidates. It should also give me a list of shortlisted candidates in order starts from best, and write a reason why this candidate is useful/ or reject.
+# HireIQ — AI-Powered Recruitment Platform
 
+> Automate resume screening, candidate matching, and interview scheduling in one unified platform.
+
+
+---
+
+## What is HireIQ?
+
+HireIQ is a production-grade web application that helps recruiters manage end-to-end hiring — from posting job descriptions to scheduling Google Meet interviews — with AI doing the heavy lifting on resume evaluation.
+
+A recruiter can upload multiple resumes, select a job description, and instantly get AI-generated match scores, skill gap analysis, and hiring recommendations for every candidate.
+
+---
+
+## Features
+
+### 🤖 AI Resume Matching
+Upload one or multiple resumes and evaluate them against any Job Description. The AI extracts candidate info, identifies matching and missing skills, assigns a match score, and gives a hire/no-hire recommendation.
+
+### 📋 Job Description Management
+Create and manage multiple open positions. Each JD has its own status (Open / On Hold / Closed), can be assigned to a team member, and is visible to managers via the dashboard.
+
+### 🔄 Candidate Re-Evaluation
+Evaluate the same candidate against a different role. Previous scores are stored — the profile always shows the latest result, with full evaluation history accessible in the candidate view.
+
+### 📊 Pipeline Status Tracking
+Move candidates through a 7-stage hiring pipeline with optional comments on every status change:
+
+| Status | Meaning |
+|---|---|
+| 🔵 New | Evaluated, pending review |
+| 🟣 Reviewed | Recruiter has reviewed the AI output |
+| 🟡 Shortlisted | Moving forward |
+| 🔵 Interview Scheduled | Interview booked |
+| 🔴 Rejected | Not proceeding |
+| 🟢 Hired | Successfully hired |
+| ⚫ Archived | Closed out |
+
+### 📅 Interview Scheduling
+Schedule, reschedule, or cancel interviews with Google Meet integration. Meeting links are auto-generated and accessible directly from the candidate profile. Past and cancelled interviews are preserved for reference.
+
+### ⚡ Bulk Status Update
+Multi-select candidates and update their status in one action — useful for archiving or rejecting all remaining candidates after a position is filled.
+
+### 📁 Resume Viewer
+View the original uploaded resume in-app without downloading or switching tools.
+
+### 📤 Export to Excel
+Export candidate lists with scores, statuses, and parsed details to `.xlsx` for reporting or offline use.
+
+### 📈 Dashboard
+Real-time overview of all positions and candidates. Filter by position to review progress on a specific role. Designed for both recruiter workflow and manager oversight.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React (hosted on Vercel) |
+| Backend | Python + FastAPI (hosted on Render) |
+| Database & Auth | Supabase (PostgreSQL + Auth) |
+| File Storage | AWS S3 |
+| Video Interviews | Google Meet API |
+
+---
+
+## Architecture Overview
+
+```
+User (Browser)
+     │
+     ▼
+React Frontend  ──────────────────►  FastAPI Backend
+(Vercel)                              (Render)
+                                           │
+                        ┌──────────────────┼──────────────────┐
+                        ▼                  ▼                  ▼
+                   Supabase DB          AWS S3           Google Meet API
+                (data + auth)      (resume files)     (interview links)
+```
+
+The React frontend communicates with the FastAPI backend via REST. The backend handles all business logic, AI processing, file management (S3), and third-party integrations.
+
+---
+
+## Getting Started
+
+### Prerequisites
+- Python 3.11+
+- Node.js 18+
+- Supabase project
+- AWS S3 bucket
+- Google Meet API credentials
+
+### Backend Setup
+
+```bash
+git clone https://github.com/egrnoorfatima-max/AI-Projects/tree/main/backend.git
+cd hireiq/backend
+
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+pip install -r requirements.txt
+
+cp .env.example .env
+# Fill in your environment variables
+
+uvicorn main:app --reload
+```
+
+### Frontend Setup
+
+```bash
+cd hireiq/frontend
+
+npm install
+
+cp .env.example .env.local
+# Add your API base URL
+
+npm run dev
+```
+
+### Environment Variables
+
+**Backend `.env`**
+```
+GROQ_API_KEY=
+DATABASE_URL=
+SECRET_KEY=
+ADMIN_EMAIL=
+ADMIN_PASSWORD=
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_REGION=
+S3_BUCKET_NAME=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=
+```
+
+**Frontend `.env.local`**
+```
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+---
+
+## Deployment
+
+| Service | Platform | Notes |
+|---|---|---|
+| Frontend | Vercel | Auto-deploys from `main` branch |
+| Backend | Render | Web service, auto-deploys from `main` |
+| Database | Supabase | Managed PostgreSQL |
+| Files | AWS S3 | Resume storage |
+
+---
+
+## Built With AI
+
+This project was built using **Claude (Anthropic)** as an AI coding and architecture partner — from system design and API structure to debugging and documentation. It's a practical example of using AI tooling to ship a full-stack, production-grade product faster without cutting corners on quality.
+
+---
+## License
+
+MIT License — feel free to fork and adapt.
+
+---
+
+*Built by [Noor Fatima](https://www.linkedin.com/in/noor-fatima-45a25b224/) · [Live Demo](https://ai-projects-8st39kfhb-noor-fatima-s-projects.vercel.app/) 

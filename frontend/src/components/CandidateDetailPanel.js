@@ -8,6 +8,10 @@ const INTERVIEW_BORDER = {
   cancelled: '#dc2626',
 };
 
+const TODAY_STR = new Date().toISOString().split('T')[0];
+const DURATIONS_MAP = { 30: '30 minutes', 45: '45 minutes', 60: '1 hour', 90: '1.5 hours' };
+const INTERVIEW_TYPE_LABEL = { video: 'Video — Google Meet', phone: 'Phone Call', onsite: 'Onsite' };
+
 const sectionHr = { border: 'none', borderTop: '1.5px solid #e5e7eb', margin: '24px 0 16px 0' };
 const sectionTitle = { fontSize: '16px', fontWeight: '700', color: '#111827' };
 const sectionHeader = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderLeft: '4px solid #2563eb', paddingLeft: '10px', marginBottom: '12px' };
@@ -21,8 +25,7 @@ export default function CandidateDetailPanel({ candidate, onClose, API_BASE, tok
   const [loadingHistorical, setLoadingHistorical] = useState(false);
   const [interviews, setInterviews] = useState([]);
   const [loadingInterviews, setLoadingInterviews] = useState(false);
-  const [reschedulingId, setReschedulingId] = useState(null);
-  const [rescheduleForm, setRescheduleForm] = useState({ interview_date: '', interview_time: '' });
+  const [rescheduleModalIv, setRescheduleModalIv] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [showPastInterviews, setShowPastInterviews] = useState(false);
   const [hoveredCardId, setHoveredCardId] = useState(null);
@@ -81,31 +84,6 @@ export default function CandidateDetailPanel({ candidate, onClose, API_BASE, tok
   useEffect(() => {
     if (refreshInterviewsToken > 0) fetchInterviews();
   }, [refreshInterviewsToken, fetchInterviews]);
-
-  const handleReschedule = async (interviewId) => {
-    if (!rescheduleForm.interview_date || !rescheduleForm.interview_time) return;
-    setActionLoading(true);
-    const payload = {
-      interview_date: rescheduleForm.interview_date,
-      interview_time: rescheduleForm.interview_time,
-    };
-    console.log('Reschedule payload:', payload);
-    try {
-      console.log("Reschedule payload:", JSON.stringify(payload))
-      await axios.patch(
-        `${API_BASE}/interviews/${interviewId}/reschedule`,
-        payload,
-        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
-      );
-      setReschedulingId(null);
-      setRescheduleForm({ interview_date: '', interview_time: '' });
-      fetchInterviews();
-    } catch (err) {
-      console.error('Reschedule failed:', err);
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   const handleCancel = async (interviewId) => {
     if (!window.confirm('Cancel this interview? The Google Calendar event will also be deleted.')) return;
@@ -266,58 +244,22 @@ export default function CandidateDetailPanel({ candidate, onClose, API_BASE, tok
                     </a>
                   )}
 
-                  {reschedulingId === iv.id ? (
-                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '10px', flexWrap: 'wrap' }}>
-                      <input
-                        type="date"
-                        className="interview-reschedule-input"
-                        min={new Date().toISOString().split('T')[0]}
-                        value={rescheduleForm.interview_date}
-                        onChange={(e) => setRescheduleForm((f) => ({ ...f, interview_date: e.target.value }))}
-                      />
-                      <input
-                        type="time"
-                        className="interview-reschedule-input"
-                        value={rescheduleForm.interview_time}
-                        onChange={(e) => setRescheduleForm((f) => ({ ...f, interview_time: e.target.value }))}
-                      />
-                      <button
-                        className="btn btn-primary"
-                        style={{ padding: '4px 10px', fontSize: '12px' }}
-                        onClick={() => handleReschedule(iv.id)}
-                        disabled={actionLoading}
-                      >
-                        Confirm
-                      </button>
-                      <button
-                        style={{ background: 'none', border: 'none', color: '#6b7280', fontSize: '13px', cursor: 'pointer', padding: '4px 0' }}
-                        onClick={() => setReschedulingId(null)}
-                        disabled={actionLoading}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', gap: '16px', marginTop: '10px' }}>
-                      <button
-                        style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '13px', cursor: 'pointer', padding: '0', fontWeight: '500' }}
-                        onClick={() => {
-                          setReschedulingId(iv.id);
-                          setRescheduleForm({ interview_date: iv.interview_date, interview_time: iv.interview_time });
-                        }}
-                        disabled={actionLoading}
-                      >
-                        Reschedule
-                      </button>
-                      <button
-                        style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '13px', cursor: 'pointer', padding: '0', fontWeight: '500' }}
-                        onClick={() => handleCancel(iv.id)}
-                        disabled={actionLoading}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', gap: '16px', marginTop: '10px' }}>
+                    <button
+                      style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '13px', cursor: 'pointer', padding: '0', fontWeight: '500' }}
+                      onClick={() => setRescheduleModalIv(iv)}
+                      disabled={actionLoading}
+                    >
+                      Reschedule
+                    </button>
+                    <button
+                      style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '13px', cursor: 'pointer', padding: '0', fontWeight: '500' }}
+                      onClick={() => handleCancel(iv.id)}
+                      disabled={actionLoading}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               ))}
 
@@ -496,6 +438,17 @@ export default function CandidateDetailPanel({ candidate, onClose, API_BASE, tok
         </div>
 
       </div>
+
+      {rescheduleModalIv && (
+        <RescheduleModal
+          iv={rescheduleModalIv}
+          candidate={candidate}
+          API_BASE={API_BASE}
+          token={token}
+          onClose={() => setRescheduleModalIv(null)}
+          onRescheduled={() => { setRescheduleModalIv(null); fetchInterviews(); }}
+        />
+      )}
     </div>
   );
 }
@@ -672,4 +625,178 @@ function formatTime(timeStr) {
   const ampm = h >= 12 ? 'PM' : 'AM';
   const hour = h % 12 || 12;
   return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+function formatDateLong(dateStr) {
+  if (!dateStr) return '';
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+    month: 'long', day: 'numeric', year: 'numeric',
+  });
+}
+
+function buildRescheduleEmailPreview(iv, newDate, newTime, candidateName, positionTitle) {
+  const durationLabel = DURATIONS_MAP[iv.duration_minutes] || `${iv.duration_minutes} minutes`;
+  const typeLabel = INTERVIEW_TYPE_LABEL[iv.interview_type] || iv.interview_type;
+  const meetLine = iv.interview_type === 'video' ? '\nJoin Google Meet: [meet link]' : '';
+  return `Dear ${candidateName},\n\nYour interview for the ${positionTitle} position has been rescheduled.\nNew Date: ${formatDateLong(newDate)}  ${formatTime(newTime)}\nDuration: ${durationLabel}\nType: ${typeLabel}${meetLine}\n\nBest regards,\nHiring Team`;
+}
+
+function RescheduleModal({ iv, candidate, API_BASE, token, onClose, onRescheduled }) {
+  const [step, setStep] = useState(1);
+  const [newDate, setNewDate] = useState(iv.interview_date || '');
+  const [newTime, setNewTime] = useState(iv.interview_time || '');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const positionTitle = candidate?.latest_match?.position_title || 'Interview';
+  const candidateName = candidate?.name || 'Candidate';
+
+  const handleNext = () => {
+    if (!newDate || !newTime) { setError('Date and time are required.'); return; }
+    setError('');
+    setEmailSubject(`Interview Rescheduled — ${positionTitle}`);
+    setEmailBody(buildRescheduleEmailPreview(iv, newDate, newTime, candidateName, positionTitle));
+    setStep(2);
+  };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError('');
+    try {
+      const bodyHtml = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;">${emailBody.replace(/\n/g, '<br>')}</div>`;
+      await axios.patch(
+        `${API_BASE}/interviews/${iv.id}/reschedule`,
+        {
+          interview_date: newDate,
+          interview_time: newTime,
+          email_subject: emailSubject,
+          email_body: bodyHtml,
+        },
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+      );
+      onRescheduled();
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message);
+      setSubmitting(false);
+    }
+  };
+
+  const inputStyle = {
+    width: '100%', padding: '8px 12px', border: '1px solid #e2e8f0',
+    borderRadius: '6px', fontSize: '0.9rem', fontFamily: 'inherit',
+    marginTop: '4px', boxSizing: 'border-box',
+  };
+  const labelStyle = {
+    display: 'block', marginBottom: '14px', fontSize: '0.875rem',
+    fontWeight: '500', color: '#1e293b',
+  };
+  const stepCircleStyle = (active, done) => ({
+    width: 22, height: 22, borderRadius: '50%',
+    background: done ? '#10b981' : active ? '#2563eb' : '#e2e8f0',
+    color: (active || done) ? 'white' : '#94a3b8',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 11, fontWeight: 700, flexShrink: 0,
+  });
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+        <div className="modal-header">
+          <h2>Reschedule Interview — {candidate?.name}</h2>
+          <button className="close-btn" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20, fontSize: '0.8rem', fontWeight: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: step === 1 ? '#2563eb' : '#10b981' }}>
+              <span style={stepCircleStyle(step === 1, step > 1)}>{step > 1 ? '✓' : '1'}</span>
+              New Schedule
+            </div>
+            <div style={{ flex: 1, height: 1, background: '#e2e8f0', margin: '0 10px' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: step === 2 ? '#2563eb' : '#94a3b8' }}>
+              <span style={stepCircleStyle(step === 2, false)}>2</span>
+              Email Preview
+            </div>
+          </div>
+
+          {step === 1 ? (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
+                <label style={labelStyle}>
+                  New Date *
+                  <input
+                    type="date"
+                    style={inputStyle}
+                    min={TODAY_STR}
+                    value={newDate}
+                    onChange={(e) => setNewDate(e.target.value)}
+                  />
+                </label>
+                <label style={labelStyle}>
+                  New Time *
+                  <input
+                    type="time"
+                    style={inputStyle}
+                    value={newTime}
+                    onChange={(e) => setNewTime(e.target.value)}
+                  />
+                </label>
+              </div>
+              {error && <div className="interview-error">{error}</div>}
+            </div>
+          ) : (
+            <div>
+              <p style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: 16 }}>
+                Review and edit the email before it is sent to the candidate.
+              </p>
+              <label style={labelStyle}>
+                Subject
+                <input
+                  type="text"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  style={inputStyle}
+                />
+              </label>
+              <label style={labelStyle}>
+                Email Body
+                <textarea
+                  value={emailBody}
+                  onChange={(e) => setEmailBody(e.target.value)}
+                  rows={12}
+                  style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
+                />
+              </label>
+              {iv.interview_type === 'video' && (
+                <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: -8, marginBottom: 0 }}>
+                  <em>[meet link] will be replaced with the actual Google Meet link.</em>
+                </p>
+              )}
+              {error && <div className="interview-error" style={{ marginTop: 12 }}>{error}</div>}
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          {step === 1 ? (
+            <>
+              <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleNext}>Next →</button>
+            </>
+          ) : (
+            <>
+              <button className="btn btn-secondary" onClick={() => { setStep(1); setError(''); }}>← Back</button>
+              <button
+                className="btn btn-primary"
+                onClick={handleSubmit}
+                disabled={submitting}
+              >
+                {submitting ? <><span className="spinner"></span> Rescheduling…</> : 'Reschedule & Send Email'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

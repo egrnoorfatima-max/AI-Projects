@@ -18,3 +18,9 @@ class BulkStatusUpdateRequest(BaseModel):
     candidate_ids: List[int]
     status: str
     comment: Optional[str] = None
+
+
+class SendEmailRequest(BaseModel):
+    subject: str
+    body: str
+    to_email: str

@@ -25,6 +25,7 @@ GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/au
 SCOPES = [
     "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/gmail.send",
 ]
 
 
@@ -83,8 +84,8 @@ def google_auth_initiate():
     flow = _get_flow()
     auth_url, _ = flow.authorization_url(
         access_type="offline",
-        include_granted_scopes="true",
         prompt="consent",
+        include_granted_scopes="false",
     )
     return RedirectResponse(auth_url)
 
@@ -251,6 +252,28 @@ def schedule_interview(
     db.commit()
     db.refresh(interview)
 
+    # Best-effort: send interview scheduled email to candidate
+    try:
+        from utils.gmail import send_email
+        if request.email_subject and request.email_body:
+            body_with_link = request.email_body.replace("[meet link]", meet_link or "")
+            send_email(creds, request.candidate_email, request.email_subject, body_with_link)
+        else:
+            from utils.email_templates import interview_scheduled_email
+            email_data = interview_scheduled_email(
+                candidate_name=candidate_name,
+                position=position_title,
+                date=request.interview_date,
+                time=request.interview_time,
+                duration=request.duration_minutes,
+                interview_type=request.interview_type,
+                meet_link=meet_link,
+                custom_message=request.custom_message,
+            )
+            send_email(creds, request.candidate_email, email_data["subject"], email_data["body"])
+    except Exception as e:
+        print(f"Interview schedule email failed (non-fatal): {e}")
+
     return {
         "id": interview.id,
         "google_meet_link": meet_link,
@@ -298,12 +321,43 @@ def reschedule_interview(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Google Calendar error: {str(e)}")
 
+    # Capture before commit for email
+    reschedule_candidate_email = interview.candidate_email
+    reschedule_candidate_id = interview.candidate_id
+    reschedule_position_id = interview.position_id
+    reschedule_meet_link = interview.google_meet_link
+    reschedule_duration = interview.duration_minutes
+    reschedule_type = interview.interview_type
+
     interview.interview_date = request.interview_date
     interview.interview_time = request.interview_time
     interview.status = "rescheduled"
     interview.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(interview)
+
+    # Best-effort: send interview rescheduled email to candidate
+    try:
+        from utils.gmail import send_email
+        if request.email_subject and request.email_body:
+            body_with_link = request.email_body.replace("[meet link]", reschedule_meet_link or "")
+            send_email(creds, reschedule_candidate_email, request.email_subject, body_with_link)
+        else:
+            from utils.email_templates import interview_rescheduled_email
+            rc = db.query(Candidate).filter(Candidate.id == reschedule_candidate_id).first()
+            rp = db.query(JobDescription).filter(JobDescription.id == reschedule_position_id).first() if reschedule_position_id else None
+            email_data = interview_rescheduled_email(
+                candidate_name=rc.name if rc else "Candidate",
+                position=rp.title if rp else "Interview",
+                new_date=request.interview_date,
+                new_time=request.interview_time,
+                duration=reschedule_duration,
+                interview_type=reschedule_type,
+                meet_link=reschedule_meet_link,
+            )
+            send_email(creds, reschedule_candidate_email, email_data["subject"], email_data["body"])
+    except Exception as e:
+        print(f"Interview reschedule email failed (non-fatal): {e}")
 
     return {
         "id": interview.id,
@@ -340,6 +394,8 @@ def cancel_interview(
     # Capture before first commit — avoids accessing expired attributes after flush
     candidate_id = interview.candidate_id
     interview_id_out = interview.id
+    cancel_candidate_email = interview.candidate_email
+    cancel_position_id = interview.position_id
 
     interview.status = "cancelled"
     interview.updated_at = datetime.utcnow()
@@ -380,6 +436,20 @@ def cancel_interview(
             )
 
         db.commit()
+
+    # Best-effort: send interview cancelled email to candidate
+    try:
+        from utils.email_templates import interview_cancelled_email
+        from utils.gmail import send_email
+        cc = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+        cp = db.query(JobDescription).filter(JobDescription.id == cancel_position_id).first() if cancel_position_id else None
+        email_data = interview_cancelled_email(
+            candidate_name=cc.name if cc else "Candidate",
+            position=cp.title if cp else "Interview",
+        )
+        send_email(creds, cancel_candidate_email, email_data["subject"], email_data["body"])
+    except Exception as e:
+        print(f"Interview cancel email failed (non-fatal): {e}")
 
     return {"id": interview_id_out, "status": "cancelled"}
 
